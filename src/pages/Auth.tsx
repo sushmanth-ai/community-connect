@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,20 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Shield, MapPin, Users } from "lucide-react";
+import { Shield, MapPin, Users, KeyRound } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const { user, role, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const seeded = useRef(false);
+
+  useEffect(() => {
+    if (!seeded.current) {
+      seeded.current = true;
+      supabase.functions.invoke("seed-admin").catch(() => {});
+    }
+  }, []);
 
   if (!loading && user && role) {
     const redirectMap: Record<string, string> = {
@@ -76,10 +85,40 @@ const Auth = () => {
                 <AuthorityLoginForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
               </TabsContent>
             </Tabs>
+
+            {/* Admin Quick Login */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <AdminQuickLogin isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
+            </div>
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+};
+
+const AdminQuickLogin = ({ isSubmitting, setIsSubmitting }: { isSubmitting: boolean; setIsSubmitting: (v: boolean) => void }) => {
+  const { signIn } = useAuth();
+
+  const handleAdminLogin = async () => {
+    setIsSubmitting(true);
+    const { error } = await signIn("admin@resolvit.com", "admin123456");
+    if (error) {
+      toast({ title: "Admin login failed", description: error.message, variant: "destructive" });
+    }
+    setIsSubmitting(false);
+  };
+
+  return (
+    <Button
+      variant="outline"
+      className="w-full gap-2 border-dashed"
+      onClick={handleAdminLogin}
+      disabled={isSubmitting}
+    >
+      <KeyRound className="h-4 w-4" />
+      {isSubmitting ? "Signing in..." : "Quick Admin Login"}
+    </Button>
   );
 };
 

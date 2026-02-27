@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +33,13 @@ const SubmitIssue = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mandals, setMandals] = useState<any[]>([]);
+  const [mandalId, setMandalId] = useState("");
+
+  useEffect(() => {
+    supabase.from("mandals").select("*").eq("district", "Nellore").eq("status", "active").order("name")
+      .then(({ data }) => { if (data) setMandals(data); });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +76,7 @@ const SubmitIssue = () => {
           lat: location.lat,
           lng: location.lng,
           image_url: imageUrl,
+          mandal_id: mandalId || null,
         },
       });
 
@@ -131,6 +139,18 @@ const SubmitIssue = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Mandal</Label>
+                <Select value={mandalId} onValueChange={setMandalId}>
+                  <SelectTrigger><SelectValue placeholder="Select mandal (optional)" /></SelectTrigger>
+                  <SelectContent>
+                    {mandals.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

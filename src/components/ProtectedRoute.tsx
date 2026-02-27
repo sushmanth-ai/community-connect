@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -8,7 +8,8 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, firstLogin } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -23,6 +24,11 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (!user) return <Navigate to="/auth" replace />;
+
+  // Force password change for authority on first login
+  if (role === "authority" && firstLogin && location.pathname !== "/authority/change-password") {
+    return <Navigate to="/authority/change-password" replace />;
+  }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
     const redirectMap: Record<string, string> = {

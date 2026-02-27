@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X, Home, PlusCircle, List, Trophy, LogOut, BarChart3, Users, AlertTriangle, Map, UserPlus } from "lucide-react";
+import { Shield, Menu, X, Home, PlusCircle, List, Trophy, LogOut, BarChart3, Users, AlertTriangle, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -29,7 +29,6 @@ const adminNav: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: <Home className="h-4 w-4" /> },
   { label: "Map View", href: "/admin/map", icon: <Map className="h-4 w-4" /> },
   { label: "Departments", href: "/admin/departments", icon: <Users className="h-4 w-4" /> },
-  { label: "Authorities", href: "/admin/authorities", icon: <Shield className="h-4 w-4" /> },
   { label: "Escalations", href: "/admin/escalations", icon: <AlertTriangle className="h-4 w-4" /> },
   { label: "Leaderboard", href: "/admin/leaderboard", icon: <Trophy className="h-4 w-4" /> },
 ];

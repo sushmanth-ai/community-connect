@@ -19,7 +19,6 @@ import AdminMapView from "./pages/admin/AdminMapView";
 import AdminDepartments from "./pages/admin/AdminDepartments";
 import AdminEscalations from "./pages/admin/AdminEscalations";
 import AdminLeaderboard from "./pages/admin/AdminLeaderboard";
-import ManageAuthorities from "./pages/admin/ManageAuthorities";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,7 +53,6 @@ const App = () => (
             <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDepartments /></ProtectedRoute>} />
             <Route path="/admin/escalations" element={<ProtectedRoute allowedRoles={["admin"]}><AdminEscalations /></ProtectedRoute>} />
             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><AdminLeaderboard /></ProtectedRoute>} />
-            <Route path="/admin/authorities" element={<ProtectedRoute allowedRoles={["admin"]}><ManageAuthorities /></ProtectedRoute>} />
             <Route path="/admin/issues/:id" element={<ProtectedRoute allowedRoles={["admin"]}><IssueDetail /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />

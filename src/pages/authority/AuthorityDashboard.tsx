@@ -13,16 +13,12 @@ import { differenceInHours } from "date-fns";
 import { Link } from "react-router-dom";
 
 const AuthorityDashboard = () => {
-  const { departmentId, role } = useAuth();
+  const { departmentId } = useAuth();
   const [issues, setIssues] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
-  const [deptFilter, setDeptFilter] = useState<string>("all");
   const [departments, setDepartments] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, resolved: 0, escalated: 0, avgTime: 0 });
   const [loading, setLoading] = useState(true);
-
-  const isAdmin = role === "admin";
-  const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
 
   useEffect(() => {
     supabase.from("departments").select("*").then(({ data }) => {
@@ -31,33 +27,29 @@ const AuthorityDashboard = () => {
   }, []);
 
   useEffect(() => {
+    if (!departmentId) return;
     const fetchIssues = async () => {
-      setLoading(true);
-      let query = supabase.from("issues").select("*").order("priority_score", { ascending: false });
-      if (effectiveDeptId) query = query.eq("department_id", effectiveDeptId);
+      let query = supabase.from("issues").select("*").eq("department_id", departmentId).order("priority_score", { ascending: false });
       if (filter !== "all") query = query.eq("status", filter as any);
       const { data } = await query;
       setIssues(data || []);
 
-      // Stats query (unfiltered by status)
-      let statsQuery = supabase.from("issues").select("*");
-      if (effectiveDeptId) statsQuery = statsQuery.eq("department_id", effectiveDeptId);
-      const { data: allData } = await statsQuery;
-      if (allData) {
-        const resolved = allData.filter((i) => i.status === "resolved");
+      const { data: allDept } = await supabase.from("issues").select("*").eq("department_id", departmentId);
+      if (allDept) {
+        const resolved = allDept.filter((i) => i.status === "resolved");
         setStats({
-          total: allData.length,
+          total: allDept.length,
           resolved: resolved.length,
-          escalated: allData.filter((i) => i.status === "escalated").length,
+          escalated: allDept.filter((i) => i.status === "escalated").length,
           avgTime: resolved.length > 0 ? Math.round(resolved.reduce((sum, i) => sum + differenceInHours(new Date(i.updated_at), new Date(i.created_at)), 0) / resolved.length) : 0,
         });
       }
       setLoading(false);
     };
     fetchIssues();
-  }, [effectiveDeptId, filter]);
+  }, [departmentId, filter]);
 
-  const sla = effectiveDeptId ? (departments.find((d) => d.id === effectiveDeptId)?.sla_hours || 48) : 48;
+  const sla = departments.find((d) => d.id === departmentId)?.sla_hours || 48;
 
   const updateStatus = async (issueId: string, newStatus: string) => {
     const { error } = await supabase.from("issues").update({ status: newStatus as any }).eq("id", issueId);
@@ -72,20 +64,7 @@ const AuthorityDashboard = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Authority Dashboard</h1>
-          {isAdmin && (
-            <Select value={deptFilter} onValueChange={setDeptFilter}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="All Departments" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Authority Dashboard</h1>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <GradientStatCard icon={<Clock />} label="Total Issues" value={stats.total} gradient="from-blue-500 to-indigo-500" />
@@ -109,7 +88,7 @@ const AuthorityDashboard = () => {
         </div>
 
         {loading ? <p className="text-muted-foreground">Loading...</p> : issues.length === 0 ? (
-          <p className="text-muted-foreground text-center py-12">No issues found.</p>
+          <p className="text-muted-foreground text-center py-12">No issues in your department.</p>
         ) : (
           <div className="space-y-3">
             {issues.map((issue) => {

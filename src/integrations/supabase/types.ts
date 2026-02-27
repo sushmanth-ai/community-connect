@@ -216,34 +216,28 @@ export type Database = {
       }
       profiles: {
         Row: {
-          aadhaar_hash: string | null
           avatar_url: string | null
           created_at: string
           department_id: string | null
           id: string
-          mobile_number: string | null
           name: string
           points_total: number
           updated_at: string
         }
         Insert: {
-          aadhaar_hash?: string | null
           avatar_url?: string | null
           created_at?: string
           department_id?: string | null
           id: string
-          mobile_number?: string | null
           name?: string
           points_total?: number
           updated_at?: string
         }
         Update: {
-          aadhaar_hash?: string | null
           avatar_url?: string | null
           created_at?: string
           department_id?: string | null
           id?: string
-          mobile_number?: string | null
           name?: string
           points_total?: number
           updated_at?: string
@@ -359,10 +353,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      _hash_aadhaar: {
-        Args: { _aadhaar: string; _user_id: string }
-        Returns: undefined
-      }
       calculate_priority_score: {
         Args: {
           _created_at: string
@@ -385,10 +375,6 @@ export type Database = {
         Returns: boolean
       }
       recalculate_all_priorities: { Args: never; Returns: undefined }
-      verify_authority_credentials: {
-        Args: { _aadhaar: string; _mobile: string }
-        Returns: string
-      }
     }
     Enums: {
       app_role: "citizen" | "authority" | "admin"

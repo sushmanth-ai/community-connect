@@ -9,14 +9,11 @@ interface AuthContextType {
   user: User | null;
   role: AppRole | null;
   departmentId: string | null;
-  mandalId: string | null;
-  firstLogin: boolean;
-  activeStatus: boolean;
   profile: { name: string; avatar_url: string | null; points_total: number } | null;
   loading: boolean;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  authorityLogin: (email: string, password: string) => Promise<{ error: any; firstLogin?: boolean }>;
+  authorityLogin: (mobile: string, aadhaar: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
 
@@ -27,9 +24,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
-  const [mandalId, setMandalId] = useState<string | null>(null);
-  const [firstLogin, setFirstLogin] = useState(false);
-  const [activeStatus, setActiveStatus] = useState(true);
   const [profile, setProfile] = useState<AuthContextType["profile"]>(null);
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const [roleRes, profileRes] = await Promise.all([
         supabase.from("user_roles").select("role, department_id").eq("user_id", userId).limit(1).single(),
-        supabase.from("profiles").select("name, avatar_url, points_total, mandal_id, first_login, active_status").eq("id", userId).single(),
+        supabase.from("profiles").select("name, avatar_url, points_total").eq("id", userId).single(),
       ]);
 
       if (roleRes.data) {
@@ -45,10 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDepartmentId(roleRes.data.department_id);
       }
       if (profileRes.data) {
-        setProfile({ name: profileRes.data.name, avatar_url: profileRes.data.avatar_url, points_total: profileRes.data.points_total });
-        setMandalId((profileRes.data as any).mandal_id || null);
-        setFirstLogin((profileRes.data as any).first_login ?? false);
-        setActiveStatus((profileRes.data as any).active_status ?? true);
+        setProfile(profileRes.data);
       }
     } catch (e) {
       console.error("Error fetching user data:", e);
@@ -62,10 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!session?.user) {
         setRole(null);
         setDepartmentId(null);
-        setMandalId(null);
         setProfile(null);
-        setFirstLogin(false);
-        setActiveStatus(true);
         setLoading(false);
       }
     });
@@ -105,10 +93,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const authorityLogin = async (email: string, password: string) => {
+  const authorityLogin = async (mobile: string, aadhaar: string) => {
     try {
       const { data, error } = await supabase.functions.invoke("authority-login", {
-        body: { email, password },
+        body: { mobile_number: mobile, aadhaar_number: aadhaar },
       });
 
       if (error) {
@@ -129,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      return { error: null, firstLogin: data?.first_login ?? false };
+      return { error: null };
     } catch (e: any) {
       return { error: { message: e.message || "Login failed" } };
     }
@@ -139,14 +127,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setRole(null);
     setDepartmentId(null);
-    setMandalId(null);
     setProfile(null);
-    setFirstLogin(false);
-    setActiveStatus(true);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, role, departmentId, mandalId, firstLogin, activeStatus, profile, loading, signUp, signIn, authorityLogin, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, departmentId, profile, loading, signUp, signIn, authorityLogin, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -16,7 +16,7 @@ import { Link } from "react-router-dom";
 import { XCircle } from "lucide-react";
 
 const AuthorityQueue = () => {
-  const { departmentId, mandalId, role } = useAuth();
+  const { departmentId, role } = useAuth();
   const [issues, setIssues] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState<string>("all");
@@ -30,7 +30,6 @@ const AuthorityQueue = () => {
 
   const isAdmin = role === "admin";
   const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
-  const effectiveMandalId = isAdmin ? null : mandalId;
 
   useEffect(() => {
     supabase.from("departments").select("*").then(({ data }) => {
@@ -43,14 +42,13 @@ const AuthorityQueue = () => {
       setLoading(true);
       let query = supabase.from("issues").select("*").order("priority_score", { ascending: false });
       if (effectiveDeptId) query = query.eq("department_id", effectiveDeptId);
-      if (effectiveMandalId) query = query.eq("mandal_id", effectiveMandalId);
       if (filter !== "all") query = query.eq("status", filter as any);
       const { data } = await query;
       setIssues(data || []);
       setLoading(false);
     };
     fetchIssues();
-  }, [effectiveDeptId, effectiveMandalId, filter, refreshKey]);
+  }, [effectiveDeptId, filter, refreshKey]);
 
   useEffect(() => {
     const channelFilter = effectiveDeptId

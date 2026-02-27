@@ -85,7 +85,6 @@ export type Database = {
           image_url: string | null
           lat: number
           lng: number
-          mandal_id: string | null
           priority_score: number
           report_count: number
           reporter_id: string
@@ -106,7 +105,6 @@ export type Database = {
           image_url?: string | null
           lat: number
           lng: number
-          mandal_id?: string | null
           priority_score?: number
           report_count?: number
           reporter_id: string
@@ -127,7 +125,6 @@ export type Database = {
           image_url?: string | null
           lat?: number
           lng?: number
-          mandal_id?: string | null
           priority_score?: number
           report_count?: number
           reporter_id?: string
@@ -145,41 +142,7 @@ export type Database = {
             referencedRelation: "departments"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "issues_mandal_id_fkey"
-            columns: ["mandal_id"]
-            isOneToOne: false
-            referencedRelation: "mandals"
-            referencedColumns: ["id"]
-          },
         ]
-      }
-      mandals: {
-        Row: {
-          created_at: string
-          district: string
-          id: string
-          name: string
-          state: string
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          district?: string
-          id?: string
-          name: string
-          state?: string
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          district?: string
-          id?: string
-          name?: string
-          state?: string
-          status?: string
-        }
-        Relationships: []
       }
       notifications: {
         Row: {
@@ -257,15 +220,10 @@ export type Database = {
       profiles: {
         Row: {
           aadhaar_hash: string | null
-          active_status: boolean
           avatar_url: string | null
           created_at: string
           department_id: string | null
-          first_login: boolean
-          gov_id: string | null
           id: string
-          last_login: string | null
-          mandal_id: string | null
           mobile_number: string | null
           name: string
           points_total: number
@@ -273,15 +231,10 @@ export type Database = {
         }
         Insert: {
           aadhaar_hash?: string | null
-          active_status?: boolean
           avatar_url?: string | null
           created_at?: string
           department_id?: string | null
-          first_login?: boolean
-          gov_id?: string | null
           id: string
-          last_login?: string | null
-          mandal_id?: string | null
           mobile_number?: string | null
           name?: string
           points_total?: number
@@ -289,15 +242,10 @@ export type Database = {
         }
         Update: {
           aadhaar_hash?: string | null
-          active_status?: boolean
           avatar_url?: string | null
           created_at?: string
           department_id?: string | null
-          first_login?: boolean
-          gov_id?: string | null
           id?: string
-          last_login?: string | null
-          mandal_id?: string | null
           mobile_number?: string | null
           name?: string
           points_total?: number
@@ -309,13 +257,6 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_mandal_id_fkey"
-            columns: ["mandal_id"]
-            isOneToOne: false
-            referencedRelation: "mandals"
             referencedColumns: ["id"]
           },
         ]

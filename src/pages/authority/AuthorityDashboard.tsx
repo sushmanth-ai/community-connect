@@ -13,7 +13,7 @@ import { differenceInHours } from "date-fns";
 import { Link } from "react-router-dom";
 
 const AuthorityDashboard = () => {
-  const { departmentId, mandalId, role } = useAuth();
+  const { departmentId, role } = useAuth();
   const [issues, setIssues] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState<string>("all");
@@ -24,7 +24,6 @@ const AuthorityDashboard = () => {
 
   const isAdmin = role === "admin";
   const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
-  const effectiveMandalId = isAdmin ? null : mandalId;
 
   useEffect(() => {
     supabase.from("departments").select("*").then(({ data }) => {
@@ -37,7 +36,6 @@ const AuthorityDashboard = () => {
       setLoading(true);
       let query = supabase.from("issues").select("*").order("priority_score", { ascending: false });
       if (effectiveDeptId) query = query.eq("department_id", effectiveDeptId);
-      if (effectiveMandalId) query = query.eq("mandal_id", effectiveMandalId);
       if (filter !== "all") query = query.eq("status", filter as any);
       const { data } = await query;
       setIssues(data || []);
@@ -45,7 +43,6 @@ const AuthorityDashboard = () => {
       // Stats query (unfiltered by status)
       let statsQuery = supabase.from("issues").select("*");
       if (effectiveDeptId) statsQuery = statsQuery.eq("department_id", effectiveDeptId);
-      if (effectiveMandalId) statsQuery = statsQuery.eq("mandal_id", effectiveMandalId);
       const { data: allData } = await statsQuery;
       if (allData) {
         const resolved = allData.filter((i) => i.status === "resolved");
@@ -59,7 +56,7 @@ const AuthorityDashboard = () => {
       setLoading(false);
     };
     fetchIssues();
-  }, [effectiveDeptId, effectiveMandalId, filter, refreshKey]);
+  }, [effectiveDeptId, filter, refreshKey]);
 
   // Realtime subscription for live updates
   useEffect(() => {

@@ -15,7 +15,6 @@ import Leaderboard from "./pages/citizen/Leaderboard";
 import AuthorityDashboard from "./pages/authority/AuthorityDashboard";
 import AuthorityQueue from "./pages/authority/AuthorityQueue";
 import AuthorityStats from "./pages/authority/AuthorityStats";
-import ChangePassword from "./pages/authority/ChangePassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminMapView from "./pages/admin/AdminMapView";
 import AdminDepartments from "./pages/admin/AdminDepartments";
@@ -47,7 +46,6 @@ const App = () => (
 
             {/* Authority Routes */}
             <Route path="/authority" element={<ProtectedRoute allowedRoles={["authority", "admin"]}><AuthorityDashboard /></ProtectedRoute>} />
-            <Route path="/authority/change-password" element={<ProtectedRoute allowedRoles={["authority"]}><ChangePassword /></ProtectedRoute>} />
             <Route path="/authority/queue" element={<ProtectedRoute allowedRoles={["authority", "admin"]}><AuthorityQueue /></ProtectedRoute>} />
             <Route path="/authority/stats" element={<ProtectedRoute allowedRoles={["authority", "admin"]}><AuthorityStats /></ProtectedRoute>} />
             <Route path="/authority/issues/:id" element={<ProtectedRoute allowedRoles={["authority"]}><IssueDetail /></ProtectedRoute>} />

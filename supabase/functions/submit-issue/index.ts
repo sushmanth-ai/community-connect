@@ -24,7 +24,7 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) throw new Error("Unauthorized");
 
-    const { title, description, category, severity, lat, lng, image_url, mandal_id } = await req.json();
+    const { title, description, category, severity, lat, lng, image_url } = await req.json();
 
     // Validate inputs
     if (!title || !description || !category || !lat || !lng) {
@@ -178,7 +178,6 @@ serve(async (req) => {
         reporter_id: user.id,
         priority_score: priorityScore,
         department_id: dept?.id || null,
-        mandal_id: mandal_id || null,
       })
       .select()
       .single();

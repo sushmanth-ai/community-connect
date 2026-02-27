@@ -12,7 +12,13 @@ import MyIssues from "./pages/citizen/MyIssues";
 import IssueDetail from "./pages/citizen/IssueDetail";
 import Leaderboard from "./pages/citizen/Leaderboard";
 import AuthorityDashboard from "./pages/authority/AuthorityDashboard";
+import AuthorityQueue from "./pages/authority/AuthorityQueue";
+import AuthorityStats from "./pages/authority/AuthorityStats";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminMapView from "./pages/admin/AdminMapView";
+import AdminDepartments from "./pages/admin/AdminDepartments";
+import AdminEscalations from "./pages/admin/AdminEscalations";
+import AdminLeaderboard from "./pages/admin/AdminLeaderboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,16 +43,16 @@ const App = () => (
 
             {/* Authority Routes */}
             <Route path="/authority" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityDashboard /></ProtectedRoute>} />
-            <Route path="/authority/queue" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityDashboard /></ProtectedRoute>} />
-            <Route path="/authority/stats" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityDashboard /></ProtectedRoute>} />
+            <Route path="/authority/queue" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityQueue /></ProtectedRoute>} />
+            <Route path="/authority/stats" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityStats /></ProtectedRoute>} />
             <Route path="/authority/issues/:id" element={<ProtectedRoute allowedRoles={["authority"]}><IssueDetail /></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/map" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/escalations" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/map" element={<ProtectedRoute allowedRoles={["admin"]}><AdminMapView /></ProtectedRoute>} />
+            <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDepartments /></ProtectedRoute>} />
+            <Route path="/admin/escalations" element={<ProtectedRoute allowedRoles={["admin"]}><AdminEscalations /></ProtectedRoute>} />
+            <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><AdminLeaderboard /></ProtectedRoute>} />
             <Route path="/admin/issues/:id" element={<ProtectedRoute allowedRoles={["admin"]}><IssueDetail /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />

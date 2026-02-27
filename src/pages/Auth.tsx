@@ -70,10 +70,11 @@ const Auth = () => {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login">
-              <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="login">Sign In</TabsTrigger>
                 <TabsTrigger value="signup">Sign Up</TabsTrigger>
                 <TabsTrigger value="authority">Authority</TabsTrigger>
+                <TabsTrigger value="admin">Admin</TabsTrigger>
               </TabsList>
               <TabsContent value="login">
                 <LoginForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
@@ -84,12 +85,10 @@ const Auth = () => {
               <TabsContent value="authority">
                 <AuthorityLoginForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
               </TabsContent>
+              <TabsContent value="admin">
+                <AdminLoginForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
+              </TabsContent>
             </Tabs>
-
-            {/* Admin Quick Login */}
-            <div className="mt-4 pt-4 border-t border-border">
-              <AdminQuickLogin isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -97,12 +96,18 @@ const Auth = () => {
   );
 };
 
-const AdminQuickLogin = ({ isSubmitting, setIsSubmitting }: { isSubmitting: boolean; setIsSubmitting: (v: boolean) => void }) => {
+const AdminLoginForm = ({ isSubmitting, setIsSubmitting }: { isSubmitting: boolean; setIsSubmitting: (v: boolean) => void }) => {
   const { signIn } = useAuth();
+  const [password, setPassword] = useState("");
 
-  const handleAdminLogin = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== "admin123456") {
+      toast({ title: "Access denied", description: "Invalid admin password", variant: "destructive" });
+      return;
+    }
     setIsSubmitting(true);
-    const { error } = await signIn("admin@resolvit.com", "admin123456");
+    const { error } = await signIn("admin@resolvit.com", password);
     if (error) {
       toast({ title: "Admin login failed", description: error.message, variant: "destructive" });
     }
@@ -110,15 +115,27 @@ const AdminQuickLogin = ({ isSubmitting, setIsSubmitting }: { isSubmitting: bool
   };
 
   return (
-    <Button
-      variant="outline"
-      className="w-full gap-2 border-dashed"
-      onClick={handleAdminLogin}
-      disabled={isSubmitting}
-    >
-      <KeyRound className="h-4 w-4" />
-      {isSubmitting ? "Signing in..." : "Quick Admin Login"}
-    </Button>
+    <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+      <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground mb-2">
+        Enter the admin password to access the admin dashboard.
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="admin-password">Admin Password</Label>
+        <Input
+          id="admin-password"
+          type="password"
+          placeholder="Enter admin password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+          className="transition-all duration-200 focus:scale-[1.01]"
+        />
+      </div>
+      <Button type="submit" className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300" disabled={isSubmitting}>
+        <KeyRound className="h-4 w-4 mr-2" />
+        {isSubmitting ? "Signing in..." : "Admin Sign In"}
+      </Button>
+    </form>
   );
 };
 

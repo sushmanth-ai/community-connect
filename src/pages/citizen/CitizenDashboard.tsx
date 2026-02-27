@@ -19,7 +19,7 @@ const CitizenDashboard = () => {
     if (!user) return;
     const fetchData = async () => {
       const [allRes, recentRes] = await Promise.all([
-        supabase.from("issues").select("status").eq("reporter_id", user.id),
+        supabase.from("issues").select("status"),
         supabase.from("issues").select("*").order("created_at", { ascending: false }).limit(20),
       ]);
 

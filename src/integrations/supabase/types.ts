@@ -76,6 +76,7 @@ export type Database = {
       issues: {
         Row: {
           assigned_authority_id: string | null
+          cancellation_reason: string | null
           category: Database["public"]["Enums"]["issue_category"]
           created_at: string
           department_id: string | null
@@ -95,6 +96,7 @@ export type Database = {
         }
         Insert: {
           assigned_authority_id?: string | null
+          cancellation_reason?: string | null
           category?: Database["public"]["Enums"]["issue_category"]
           created_at?: string
           department_id?: string | null
@@ -114,6 +116,7 @@ export type Database = {
         }
         Update: {
           assigned_authority_id?: string | null
+          cancellation_reason?: string | null
           category?: Database["public"]["Enums"]["issue_category"]
           created_at?: string
           department_id?: string | null
@@ -400,7 +403,12 @@ export type Database = {
         | "public_safety"
         | "parks"
         | "other"
-      issue_status: "open" | "in_progress" | "resolved" | "escalated"
+      issue_status:
+        | "open"
+        | "in_progress"
+        | "resolved"
+        | "escalated"
+        | "cancelled"
       notification_type:
         | "issue_assigned"
         | "issue_escalated"
@@ -545,7 +553,13 @@ export const Constants = {
         "parks",
         "other",
       ],
-      issue_status: ["open", "in_progress", "resolved", "escalated"],
+      issue_status: [
+        "open",
+        "in_progress",
+        "resolved",
+        "escalated",
+        "cancelled",
+      ],
       notification_type: [
         "issue_assigned",
         "issue_escalated",

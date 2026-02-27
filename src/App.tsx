@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import CitizenDashboard from "./pages/citizen/CitizenDashboard";
 import SubmitIssue from "./pages/citizen/SubmitIssue";
 import MyIssues from "./pages/citizen/MyIssues";
+import EditIssue from "./pages/citizen/EditIssue";
 import IssueDetail from "./pages/citizen/IssueDetail";
 import Leaderboard from "./pages/citizen/Leaderboard";
 import AuthorityDashboard from "./pages/authority/AuthorityDashboard";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/citizen/submit" element={<ProtectedRoute allowedRoles={["citizen"]}><SubmitIssue /></ProtectedRoute>} />
             <Route path="/citizen/issues" element={<ProtectedRoute allowedRoles={["citizen"]}><MyIssues /></ProtectedRoute>} />
             <Route path="/citizen/issues/:id" element={<ProtectedRoute allowedRoles={["citizen"]}><IssueDetail /></ProtectedRoute>} />
+            <Route path="/citizen/issues/:id/edit" element={<ProtectedRoute allowedRoles={["citizen"]}><EditIssue /></ProtectedRoute>} />
             <Route path="/citizen/leaderboard" element={<ProtectedRoute allowedRoles={["citizen"]}><Leaderboard /></ProtectedRoute>} />
 
             {/* Authority Routes */}

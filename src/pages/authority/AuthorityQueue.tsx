@@ -7,9 +7,13 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/issues/StatusBadge";
 import { PriorityBadge } from "@/components/issues/PriorityBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { differenceInHours } from "date-fns";
 import { Link } from "react-router-dom";
+import { XCircle } from "lucide-react";
 
 const AuthorityQueue = () => {
   const { departmentId, role } = useAuth();
@@ -19,6 +23,10 @@ const AuthorityQueue = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelIssueId, setCancelIssueId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   const isAdmin = role === "admin";
   const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
@@ -42,7 +50,6 @@ const AuthorityQueue = () => {
     fetchIssues();
   }, [effectiveDeptId, filter, refreshKey]);
 
-  // Realtime subscription for live updates
   useEffect(() => {
     const channelFilter = effectiveDeptId
       ? { event: '*' as const, schema: 'public', table: 'issues', filter: `department_id=eq.${effectiveDeptId}` }
@@ -72,6 +79,28 @@ const AuthorityQueue = () => {
     }
   };
 
+  const handleCancelIssue = async () => {
+    if (!cancelIssueId || !cancelReason.trim()) {
+      toast({ title: "Please provide a reason", variant: "destructive" });
+      return;
+    }
+    setCancelling(true);
+    const { error } = await supabase
+      .from("issues")
+      .update({ status: "cancelled" as any, cancellation_reason: cancelReason.trim() })
+      .eq("id", cancelIssueId);
+    if (error) {
+      toast({ title: "Cancel failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Issue cancelled" });
+      setRefreshKey((k) => k + 1);
+    }
+    setCancelling(false);
+    setCancelDialogOpen(false);
+    setCancelReason("");
+    setCancelIssueId(null);
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -97,6 +126,7 @@ const AuthorityQueue = () => {
                 <SelectItem value="in_progress">In Progress</SelectItem>
                 <SelectItem value="escalated">Escalated</SelectItem>
                 <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -111,7 +141,7 @@ const AuthorityQueue = () => {
             {issues.map((issue) => {
               const hoursElapsed = differenceInHours(new Date(), new Date(issue.created_at));
               const remaining = sla - hoursElapsed;
-              const isOverdue = remaining <= 0 && issue.status !== "resolved";
+              const isOverdue = remaining <= 0 && issue.status !== "resolved" && issue.status !== "cancelled";
 
               return (
                 <Card key={issue.id} className={`group hover:shadow-lg hover:scale-[1.01] transition-all duration-300 ${isOverdue ? "border-destructive/50 bg-destructive/5" : "hover:border-primary/30"}`}>
@@ -125,12 +155,15 @@ const AuthorityQueue = () => {
                           <PriorityBadge score={issue.priority_score} />
                           {isOverdue ? (
                             <span className="text-xs text-destructive font-medium">⚠ SLA Overdue by {Math.abs(remaining)}h</span>
-                          ) : issue.status !== "resolved" ? (
+                          ) : issue.status !== "resolved" && issue.status !== "cancelled" ? (
                             <span className="text-xs text-muted-foreground">{remaining}h remaining</span>
                           ) : null}
                         </div>
+                        {issue.status === "cancelled" && issue.cancellation_reason && (
+                          <p className="text-xs text-muted-foreground mt-2 italic">Reason: {issue.cancellation_reason}</p>
+                        )}
                       </Link>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         {issue.status === "open" && (
                           <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => updateStatus(issue.id, "in_progress")}>
                             Start Work
@@ -139,6 +172,20 @@ const AuthorityQueue = () => {
                         {(issue.status === "in_progress" || issue.status === "open") && (
                           <Button size="sm" className="bg-gradient-to-r from-secondary to-primary hover:opacity-90" onClick={() => updateStatus(issue.id, "resolved")}>
                             Resolve
+                          </Button>
+                        )}
+                        {issue.status !== "resolved" && issue.status !== "cancelled" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={() => {
+                              setCancelIssueId(issue.id);
+                              setCancelDialogOpen(true);
+                            }}
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Cancel
                           </Button>
                         )}
                       </div>
@@ -150,6 +197,29 @@ const AuthorityQueue = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Issue</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Reason for cancellation</Label>
+            <Textarea
+              placeholder="Explain why this issue is being cancelled (e.g. duplicate, not valid, insufficient info)..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Back</Button>
+            <Button variant="destructive" onClick={handleCancelIssue} disabled={cancelling || !cancelReason.trim()}>
+              {cancelling ? "Cancelling..." : "Confirm Cancel"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

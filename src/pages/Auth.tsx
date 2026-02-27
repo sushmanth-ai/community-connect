@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -220,33 +220,18 @@ const SignupForm = ({ isSubmitting, setIsSubmitting }: { isSubmitting: boolean; 
 
 const AuthorityLoginForm = ({ isSubmitting, setIsSubmitting }: { isSubmitting: boolean; setIsSubmitting: (v: boolean) => void }) => {
   const { authorityLogin } = useAuth();
-  const [mobile, setMobile] = useState("");
-  const [aadhaar, setAadhaar] = useState("");
-  const [mobileError, setMobileError] = useState("");
-  const [aadhaarError, setAadhaarError] = useState("");
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMobileError("");
-    setAadhaarError("");
-
-    // Validate
-    const cleanMobile = mobile.replace(/\D/g, "");
-    const cleanAadhaar = aadhaar.replace(/\D/g, "");
-
-    if (!/^\d{10}$/.test(cleanMobile)) {
-      setMobileError("Must be exactly 10 digits");
-      return;
-    }
-    if (!/^\d{12}$/.test(cleanAadhaar)) {
-      setAadhaarError("Must be exactly 12 digits");
-      return;
-    }
-
     setIsSubmitting(true);
-    const { error } = await authorityLogin(cleanMobile, cleanAadhaar);
+    const { error, firstLogin } = await authorityLogin(email, password);
     if (error) {
       toast({ title: "Login failed", description: error.message || "Invalid credentials", variant: "destructive" });
+    } else if (firstLogin) {
+      navigate("/authority/change-password");
     }
     setIsSubmitting(false);
   };
@@ -254,41 +239,31 @@ const AuthorityLoginForm = ({ isSubmitting, setIsSubmitting }: { isSubmitting: b
   return (
     <form onSubmit={handleSubmit} className="space-y-4 mt-4">
       <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground mb-2">
-        Authority login is for government officials only. Accounts are created by administrators.
+        Authority login is for government officials only. Use the email and password provided by your administrator.
       </div>
       <div className="space-y-2">
-        <Label htmlFor="auth-mobile">Mobile Number</Label>
+        <Label htmlFor="auth-email">Email</Label>
         <Input
-          id="auth-mobile"
-          type="tel"
-          placeholder="10-digit mobile number"
-          value={mobile}
-          onChange={e => {
-            setMobile(e.target.value.replace(/\D/g, "").slice(0, 10));
-            setMobileError("");
-          }}
+          id="auth-email"
+          type="email"
+          placeholder="Your official email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
-          maxLength={10}
           className="transition-all duration-200 focus:scale-[1.01]"
         />
-        {mobileError && <p className="text-xs text-destructive">{mobileError}</p>}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="auth-aadhaar">Aadhaar Number</Label>
+        <Label htmlFor="auth-password">Password</Label>
         <Input
-          id="auth-aadhaar"
+          id="auth-password"
           type="password"
-          placeholder="12-digit Aadhaar number"
-          value={aadhaar}
-          onChange={e => {
-            setAadhaar(e.target.value.replace(/\D/g, "").slice(0, 12));
-            setAadhaarError("");
-          }}
+          placeholder="Your password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           required
-          maxLength={12}
           className="transition-all duration-200 focus:scale-[1.01]"
         />
-        {aadhaarError && <p className="text-xs text-destructive">{aadhaarError}</p>}
       </div>
       <Button type="submit" className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300" disabled={isSubmitting}>
         {isSubmitting ? "Verifying..." : "Authority Sign In"}

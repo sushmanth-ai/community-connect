@@ -9,7 +9,7 @@ const corsHeaders = {
 // Simple in-memory rate limiter
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 5;
-const RATE_WINDOW_MS = 60_000; // 1 minute
+const RATE_WINDOW_MS = 60_000;
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -44,19 +44,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { mobile_number, aadhaar_number } = await req.json();
+    const { email, password } = await req.json();
 
-    // Validate mobile (10 digits)
-    if (!mobile_number || !/^\d{10}$/.test(mobile_number)) {
-      return new Response(JSON.stringify({ error: "Invalid mobile number. Must be exactly 10 digits." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Validate aadhaar (12 digits)
-    if (!aadhaar_number || !/^\d{12}$/.test(aadhaar_number)) {
-      return new Response(JSON.stringify({ error: "Invalid Aadhaar number. Must be exactly 12 digits." }), {
+    if (!email || !password) {
+      return new Response(JSON.stringify({ error: "Email and password are required." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -64,90 +55,76 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    const supabaseAnon = createClient(supabaseUrl, anonKey);
 
-    // Call verify function
-    const { data: userId, error: rpcError } = await supabaseAdmin.rpc("verify_authority_credentials", {
-      _mobile: mobile_number,
-      _aadhaar: aadhaar_number,
+    // Sign in with email+password
+    const { data: signInData, error: signInError } = await supabaseAnon.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    if (rpcError || !userId) {
+    if (signInError || !signInData?.session) {
       return new Response(JSON.stringify({ error: "Invalid credentials" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Generate a magic link token for the user (custom session)
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "magiclink",
-      email: "", // We need the user's email
-    });
+    const userId = signInData.user.id;
 
-    // Get user email first
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
-    if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: "User not found" }), {
-        status: 401,
+    // Verify this user is an authority
+    const { data: roleData } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "authority")
+      .limit(1)
+      .single();
+
+    if (!roleData) {
+      return new Response(JSON.stringify({ error: "This account is not an authority account." }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Generate a magic link for the actual user
-    const { data: magicLinkData, error: magicError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "magiclink",
-      email: userData.user.email!,
-    });
+    // Check active_status
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("active_status, first_login")
+      .eq("id", userId)
+      .single();
 
-    if (magicError || !magicLinkData) {
-      console.error("Magic link error:", magicError);
-      return new Response(JSON.stringify({ error: "Authentication failed" }), {
-        status: 500,
+    if (profile && !profile.active_status) {
+      return new Response(JSON.stringify({ error: "Your account has been deactivated. Contact admin." }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Extract the token from the link and verify it to get a session
-    const token_hash = magicLinkData.properties?.hashed_token;
-    if (!token_hash) {
-      return new Response(JSON.stringify({ error: "Authentication failed" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Use the anon key client to verify the OTP and get a real session
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseAnon = createClient(supabaseUrl, anonKey);
-
-    const { data: sessionData, error: sessionError } = await supabaseAnon.auth.verifyOtp({
-      type: "magiclink",
-      token_hash,
-    });
-
-    if (sessionError || !sessionData?.session) {
-      console.error("Session error:", sessionError);
-      return new Response(JSON.stringify({ error: "Authentication failed" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Update last_login
+    await supabaseAdmin
+      .from("profiles")
+      .update({ last_login: new Date().toISOString() })
+      .eq("id", userId);
 
     return new Response(
       JSON.stringify({
         session: {
-          access_token: sessionData.session.access_token,
-          refresh_token: sessionData.session.refresh_token,
-          expires_in: sessionData.session.expires_in,
-          expires_at: sessionData.session.expires_at,
-          token_type: sessionData.session.token_type,
+          access_token: signInData.session.access_token,
+          refresh_token: signInData.session.refresh_token,
+          expires_in: signInData.session.expires_in,
+          expires_at: signInData.session.expires_at,
+          token_type: signInData.session.token_type,
         },
         user: {
-          id: sessionData.user?.id,
-          email: sessionData.user?.email,
+          id: signInData.user.id,
+          email: signInData.user.email,
         },
+        first_login: profile?.first_login ?? true,
       }),
       {
         status: 200,

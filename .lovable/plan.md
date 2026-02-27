@@ -1,85 +1,61 @@
 
 
-## Plan: Authority Assignment System with Mandal Support
+## Plan: Issue Workflow — Accept/Decline, Progress, Budget & Citizen Pipeline
 
 ### Database Changes (Migration)
 
-1. **Create `mandals` table** with columns: `id`, `name`, `district`, `state`, `status`, `created_at`
-2. **Seed 40 Nellore district mandals** into the table
-3. **Add `mandal_id` column** to `issues` table (nullable FK to mandals)
-4. **Add `mandal_id` column** to `profiles` table (to track authority's assigned mandal)
-5. **Add `gov_id` column** to `profiles` table
-6. **Add `first_login` boolean** to `profiles` table (default true)
-7. **Add `active_status` boolean** to `profiles` table (default true)
-8. **RLS policies** for mandals (public read, admin manage)
-9. **Unique constraint**: one active authority per mandal+department combination
+**1. Add new enum values to `issue_status`:**
+- `accepted`, `declined`, `work_started`, `completed`
 
-### Edge Function Changes
+**2. Create `issue_work_details` table:**
 
-**Update `create-authority`** to:
-- Accept `mandal_id` and `gov_id` 
-- Generate a cryptographically secure 12+ character password (no AI needed — crypto random is standard)
-- Store mandal_id, gov_id, first_login, active_status on profile
-- Return the generated password to admin for display/email
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| issue_id | uuid FK → issues | unique, one-per-issue |
+| budget_allocated | numeric | set on accept |
+| estimated_days | integer | set on accept |
+| work_start_date | date | set on accept |
+| decline_reason | text | set on decline |
+| decline_category | text | duplicate/invalid/outside_jurisdiction/insufficient_evidence/other |
+| progress_percentage | integer | 0, 25, 50, 75, 100 |
+| amount_used | numeric | updated by authority |
+| extension_reason | text | if time extended |
+| extended_date | date | new expected date |
+| accepted_at | timestamptz | |
+| accepted_by | uuid | authority user id |
+| created_at / updated_at | timestamptz | |
 
-**Update `authority-login`** to use **email + password** (standard Supabase auth) instead of mobile+aadhaar. Check `active_status` before allowing login. Track `last_login`.
+**RLS:** Authorities/admins can insert/update; authenticated users can read.
 
-### Auth Page Changes
+### File Changes
 
-- **Replace** AuthorityLoginForm from mobile+aadhaar to **email + password** fields
-- After login, if `first_login === true`, redirect to a **password reset flow** (force change password page)
-- Update `last_login` on profiles after successful login
-
-### New Page: Force Password Change
-
-- `/authority/change-password` — shown on first login
-- Updates password via `supabase.auth.updateUser({ password })`
-- Sets `first_login = false` on profile
-
-### ManageAuthorities Page Overhaul
-
-- **Mandal dropdown** (fetched from mandals table, filtered by district="Nellore", sorted alphabetically)
-- **Department dropdown** (from existing departments table)
-- **Authority details**: Name, Email, Phone, Gov ID, Active toggle
-- **Auto-generate password** button (client-side crypto random, 12+ chars, upper/lower/numbers/special)
-- **Assign Authority** button → calls updated `create-authority` edge function
-- On success: display credentials in a dialog (email + generated password) with copy button
-- **Management table** below form: Mandal, Department, Name, Email, Phone, Status, Last Login, Reset Password button, Deactivate button
-- **Search** by mandal or department name
-
-### Authority Dashboard Filtering
-
-- Update `AuthorityDashboard` and `AuthorityQueue` to also filter by `mandal_id` from the authority's profile
-- Issues query: `department_id = authority.department_id AND mandal_id = authority.mandal_id`
-- Update `AuthContext` to expose `mandalId` from profile
-
-### Issue Submission
-
-- Add **Mandal dropdown** to `SubmitIssue` page so citizens select which mandal the issue is in
-- Pass `mandal_id` to the `submit-issue` edge function
-- Update edge function to store `mandal_id` on created issues
-
-### Security Notes
-
-- Passwords are never stored in plaintext (Supabase auth handles bcrypt hashing)
-- Rate limiting already exists on authority-login edge function
-- Active status check prevents deactivated authorities from logging in
-- Email sending is noted but **not automatically supported** — credentials will be displayed to admin for manual sharing (Lovable only supports auth emails, not arbitrary transactional emails)
-
-### Files to Create/Modify
-
-| File | Action |
+| File | Change |
 |------|--------|
-| `supabase/migrations/new.sql` | Create mandals table, seed data, alter profiles & issues |
-| `supabase/functions/create-authority/index.ts` | Add mandal, password gen, gov_id |
-| `supabase/functions/authority-login/index.ts` | Switch to email+password auth |
-| `src/pages/admin/ManageAuthorities.tsx` | Full overhaul with mandal, management table |
-| `src/pages/Auth.tsx` | Authority login → email+password |
-| `src/pages/authority/ChangePassword.tsx` | New: force password change |
-| `src/contexts/AuthContext.tsx` | Add mandalId, active_status, first_login |
-| `src/pages/authority/AuthorityDashboard.tsx` | Filter by mandal_id |
-| `src/pages/authority/AuthorityQueue.tsx` | Filter by mandal_id |
-| `src/pages/citizen/SubmitIssue.tsx` | Add mandal selection |
-| `src/App.tsx` | Add change-password route, update ProtectedRoute logic |
-| `src/components/ProtectedRoute.tsx` | Redirect to change-password if first_login |
+| **Migration SQL** | Add enum values, create `issue_work_details` table with RLS |
+| `src/pages/authority/AuthorityDashboard.tsx` | Replace "Start Work"/"Resolve" with "Accept"/"Decline" buttons for open issues; add progress update controls for accepted/in-progress issues |
+| `src/pages/authority/AuthorityQueue.tsx` | Same accept/decline/progress flow |
+| `src/components/issues/AcceptIssueDialog.tsx` | **New** — Dialog with budget (₹), estimated days, work start date fields |
+| `src/components/issues/DeclineIssueDialog.tsx` | **New** — Dialog with reason category dropdown + text field |
+| `src/components/issues/ProgressUpdateDialog.tsx` | **New** — Dialog for progress %, amount used, extension fields |
+| `src/components/issues/IssuePipeline.tsx` | **New** — Visual pipeline component (vertical stepper with colored dots) showing: Submitted → Accepted → Budget Allocated → Work In Progress → Extended (if applicable) → Completed |
+| `src/pages/citizen/IssueDetail.tsx` | Add pipeline view, budget info card, timeline card, authority updates section |
+| `src/components/issues/StatusBadge.tsx` | Add colors for new statuses: accepted, declined, work_started, completed |
+
+### Workflow Logic
+
+**Authority side:**
+- Open issue → "Accept" or "Decline" buttons
+- Accept → fills budget, estimated days, start date → status becomes `accepted`
+- Decline → selects reason category + text → status becomes `declined`
+- Accepted issue → "Start Work" → status `work_started`
+- Work started → update progress (25/50/75/100%), amount used, or extend time
+- 100% progress → status `completed`
+
+**Citizen side (IssueDetail):**
+- Visual pipeline stepper showing current stage with colored indicators
+- Budget card: allocated amount, amount used, remaining
+- Timeline card: accepted date, start date, estimated completion, extensions
+- Progress bar showing percentage
+- All status log entries displayed
 

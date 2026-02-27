@@ -16,7 +16,6 @@ function generateSecurePassword(length = 14): string {
   const array = new Uint8Array(length);
   crypto.getRandomValues(array);
   
-  // Ensure at least one of each type
   const password = [
     upper[array[0] % upper.length],
     lower[array[1] % lower.length],
@@ -28,13 +27,92 @@ function generateSecurePassword(length = 14): string {
     password.push(all[array[i] % all.length]);
   }
   
-  // Shuffle
   for (let i = password.length - 1; i > 0; i--) {
     const j = array[i] % (i + 1);
     [password[i], password[j]] = [password[j], password[i]];
   }
   
   return password.join("");
+}
+
+async function sendCredentialsEmail(
+  to: string,
+  authorityName: string,
+  password: string,
+  mandalName: string,
+  deptName: string,
+  loginUrl: string
+): Promise<boolean> {
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendApiKey) {
+    console.error("RESEND_API_KEY not configured");
+    return false;
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendApiKey}`,
+      },
+      body: JSON.stringify({
+        from: "ResolvIt <onboarding@resend.dev>",
+        to: [to],
+        subject: "Your ResolvIt Authority Account Credentials",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 24px; border-radius: 12px 12px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">🏛️ ResolvIt Authority Account</h1>
+            </div>
+            <div style="background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 16px; color: #334155;">Hello <strong>${authorityName}</strong>,</p>
+              <p style="color: #475569;">Your authority account has been created on the ResolvIt platform. Here are your login details:</p>
+              
+              <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Mandal</td>
+                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b;">${mandalName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Department</td>
+                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b;">${deptName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Email</td>
+                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b;">${to}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Password</td>
+                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b; font-family: monospace; background: #fef3c7; padding: 4px 8px; border-radius: 4px;">${password}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <div style="background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 12px; margin: 16px 0;">
+                <p style="margin: 0; color: #854d0e; font-size: 14px;">⚠️ You will be required to change your password on first login.</p>
+              </div>
+
+              <a href="${loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 8px;">Login to ResolvIt →</a>
+              
+              <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">This is an automated message from ResolvIt. Please do not reply to this email.</p>
+            </div>
+          </div>
+        `,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("Resend API error:", err);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("Email send error:", e);
+    return false;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -54,7 +132,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller is admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -80,7 +157,6 @@ Deno.serve(async (req) => {
     const callerId = claimsData.claims.sub;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Check admin role
     const { data: roleData } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -96,9 +172,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { name, email, phone, gov_id, mandal_id, department_id, active_status } = await req.json();
+    const body = await req.json();
 
-    // Validate inputs
+    // Handle resend email action
+    if (body._action === "resend_email") {
+      const { email: resendEmail, password: resendPassword, name: resendName, mandal_name, dept_name, login_url } = body;
+      const emailSent = await sendCredentialsEmail(resendEmail, resendName, resendPassword, mandal_name, dept_name, login_url);
+      return new Response(JSON.stringify({ success: true, email_sent: emailSent }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { name, email, phone, gov_id, mandal_id, department_id, active_status } = body;
+
     if (!name || !email || !mandal_id || !department_id) {
       return new Response(JSON.stringify({ error: "Name, email, mandal, and department are required" }), {
         status: 400,
@@ -106,12 +193,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate secure password
     const generatedPassword = generateSecurePassword(14);
-
     let userId: string;
 
-    // Try to create new user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: generatedPassword,
@@ -130,7 +214,6 @@ Deno.serve(async (req) => {
           });
         }
         userId = existingUser.id;
-        // Update password for existing user
         await supabaseAdmin.auth.admin.updateUserById(userId, { password: generatedPassword });
       } else {
         return new Response(JSON.stringify({ error: createError.message }), {
@@ -142,7 +225,6 @@ Deno.serve(async (req) => {
       userId = newUser.user.id;
     }
 
-    // Update profile
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .update({
@@ -160,7 +242,6 @@ Deno.serve(async (req) => {
       console.error("Profile update error:", profileError);
     }
 
-    // Update user_role to authority with department
     const { data: existingRole } = await supabaseAdmin
       .from("user_roles")
       .select("id")
@@ -175,12 +256,27 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
     }
 
+    // Fetch mandal and department names for the email
+    let mandalName = "N/A";
+    let deptName = "N/A";
+    const { data: mandalData } = await supabaseAdmin.from("mandals").select("name").eq("id", mandal_id).single();
+    if (mandalData) mandalName = mandalData.name;
+    const { data: deptData } = await supabaseAdmin.from("departments").select("name").eq("id", department_id).single();
+    if (deptData) deptName = deptData.name;
+
+    // Send credentials email
+    const loginUrl = `${req.headers.get("origin") || "https://resolvit.app"}/auth`;
+    const emailSent = await sendCredentialsEmail(email, name, generatedPassword, mandalName, deptName, loginUrl);
+
     return new Response(
       JSON.stringify({
         success: true,
         user_id: userId,
         generated_password: generatedPassword,
         email,
+        email_sent: emailSent,
+        mandal_name: mandalName,
+        dept_name: deptName,
       }),
       {
         status: 200,

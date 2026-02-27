@@ -73,6 +73,68 @@ export type Database = {
           },
         ]
       }
+      issue_work_details: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          amount_used: number | null
+          budget_allocated: number | null
+          created_at: string
+          decline_category: string | null
+          decline_reason: string | null
+          estimated_days: number | null
+          extended_date: string | null
+          extension_reason: string | null
+          id: string
+          issue_id: string
+          progress_percentage: number | null
+          updated_at: string
+          work_start_date: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          amount_used?: number | null
+          budget_allocated?: number | null
+          created_at?: string
+          decline_category?: string | null
+          decline_reason?: string | null
+          estimated_days?: number | null
+          extended_date?: string | null
+          extension_reason?: string | null
+          id?: string
+          issue_id: string
+          progress_percentage?: number | null
+          updated_at?: string
+          work_start_date?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          amount_used?: number | null
+          budget_allocated?: number | null
+          created_at?: string
+          decline_category?: string | null
+          decline_reason?: string | null
+          estimated_days?: number | null
+          extended_date?: string | null
+          extension_reason?: string | null
+          id?: string
+          issue_id?: string
+          progress_percentage?: number | null
+          updated_at?: string
+          work_start_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_work_details_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: true
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       issues: {
         Row: {
           assigned_authority_id: string | null
@@ -468,6 +530,10 @@ export type Database = {
         | "resolved"
         | "escalated"
         | "cancelled"
+        | "accepted"
+        | "declined"
+        | "work_started"
+        | "completed"
       notification_type:
         | "issue_assigned"
         | "issue_escalated"
@@ -618,6 +684,10 @@ export const Constants = {
         "resolved",
         "escalated",
         "cancelled",
+        "accepted",
+        "declined",
+        "work_started",
+        "completed",
       ],
       notification_type: [
         "issue_assigned",

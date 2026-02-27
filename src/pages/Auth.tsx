@@ -22,12 +22,11 @@ const Auth = () => {
     }
   }, []);
 
-  // If user is already logged in, sign them out so the auth page is always accessible
-  useEffect(() => {
-    if (!loading && user) {
-      supabase.auth.signOut();
-    }
-  }, [loading, user]);
+  if (loading) return null;
+  if (user && role) {
+    const redirectMap: Record<string, string> = { citizen: "/citizen", authority: "/authority", admin: "/admin" };
+    return <Navigate to={redirectMap[role] || "/citizen"} replace />;
+  }
 
   return (
     <div className="min-h-screen flex">

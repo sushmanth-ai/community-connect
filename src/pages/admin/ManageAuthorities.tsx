@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
-import { UserPlus, Shield, Search, Copy, KeyRound, Ban, RefreshCw } from "lucide-react";
+import { UserPlus, Shield, Search, Copy, KeyRound, Ban, Mail, MailX, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 const ManageAuthorities = () => {
@@ -32,7 +32,14 @@ const ManageAuthorities = () => {
 
   // Credentials dialog
   const [credentialsDialog, setCredentialsDialog] = useState(false);
-  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [credentials, setCredentials] = useState<{
+    email: string;
+    password: string;
+    email_sent: boolean;
+    mandal_name: string;
+    dept_name: string;
+  } | null>(null);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -77,7 +84,6 @@ const ManageAuthorities = () => {
     setLoading(false);
   };
 
-  // Re-fetch when departments load
   useEffect(() => {
     if (departments.length > 0) fetchAuthorities();
   }, [departments]);
@@ -96,19 +102,49 @@ const ManageAuthorities = () => {
     if (error || data?.error) {
       toast({ title: "Failed", description: data?.error || error?.message, variant: "destructive" });
     } else {
-      setCredentials({ email: data.email, password: data.generated_password });
+      setCredentials({
+        email: data.email,
+        password: data.generated_password,
+        email_sent: data.email_sent ?? false,
+        mandal_name: data.mandal_name || "",
+        dept_name: data.dept_name || "",
+      });
       setCredentialsDialog(true);
+      if (data.email_sent) {
+        toast({ title: "✅ Credentials emailed", description: `Login details sent to ${data.email}` });
+      } else {
+        toast({ title: "⚠️ Email not sent", description: "Please share credentials manually or retry.", variant: "destructive" });
+      }
       setName(""); setEmail(""); setPhone(""); setGovId(""); setMandalId(""); setDeptId("");
       fetchAuthorities();
     }
     setFormLoading(false);
   };
 
-  const handleDeactivate = async (userId: string, currentStatus: boolean) => {
-    const { error } = await supabase.functions.invoke("create-authority", {
-      body: { _action: "toggle_status" },
+  const handleResendEmail = async () => {
+    if (!credentials) return;
+    setResending(true);
+    const { data, error } = await supabase.functions.invoke("create-authority", {
+      body: {
+        _action: "resend_email",
+        email: credentials.email,
+        password: credentials.password,
+        name: "Authority",
+        mandal_name: credentials.mandal_name,
+        dept_name: credentials.dept_name,
+        login_url: `${window.location.origin}/auth`,
+      },
     });
-    // Direct update via admin RLS
+    if (data?.email_sent) {
+      setCredentials({ ...credentials, email_sent: true });
+      toast({ title: "✅ Email sent successfully!" });
+    } else {
+      toast({ title: "Failed to send email", variant: "destructive" });
+    }
+    setResending(false);
+  };
+
+  const handleDeactivate = async (userId: string, currentStatus: boolean) => {
     const { error: updateError } = await supabase
       .from("profiles")
       .update({ active_status: !currentStatus } as any)
@@ -119,15 +155,6 @@ const ManageAuthorities = () => {
       toast({ title: currentStatus ? "Authority deactivated" : "Authority activated" });
       fetchAuthorities();
     }
-  };
-
-  const handleResetPassword = async (userId: string, userEmail: string) => {
-    // Use admin API to reset password via edge function
-    const { data, error } = await supabase.functions.invoke("create-authority", {
-      body: { name: "reset", email: userEmail, mandal_id: "reset", department_id: "reset", _reset_password: true, _user_id: userId },
-    });
-    // For now, show a message that admin should re-create
-    toast({ title: "To reset password", description: "Deactivate and re-create the authority account with the same email.", variant: "default" });
   };
 
   const copyToClipboard = (text: string) => {
@@ -215,7 +242,25 @@ const ManageAuthorities = () => {
               <DialogTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> Authority Credentials Created</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Share these credentials securely with the authority. The password cannot be retrieved later.</p>
+              {/* Email status banner */}
+              {credentials?.email_sent ? (
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg p-3 text-sm">
+                  <Mail className="h-4 w-4 shrink-0" />
+                  <span>Credentials emailed to <strong>{credentials.email}</strong></span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <MailX className="h-4 w-4 shrink-0" />
+                    <span>Email delivery failed. Share credentials manually or retry.</span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={handleResendEmail} disabled={resending} className="shrink-0">
+                    <RefreshCw className={`h-3 w-3 mr-1 ${resending ? "animate-spin" : ""}`} />
+                    {resending ? "Sending..." : "Retry"}
+                  </Button>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Email</Label>
                 <div className="flex gap-2">

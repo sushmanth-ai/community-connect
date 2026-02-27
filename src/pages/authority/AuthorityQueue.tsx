@@ -18,6 +18,7 @@ const AuthorityQueue = () => {
   const [deptFilter, setDeptFilter] = useState<string>("all");
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const isAdmin = role === "admin";
   const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
@@ -39,7 +40,7 @@ const AuthorityQueue = () => {
       setLoading(false);
     };
     fetchIssues();
-  }, [effectiveDeptId, filter]);
+  }, [effectiveDeptId, filter, refreshKey]);
 
   const sla = effectiveDeptId ? (departments.find((d) => d.id === effectiveDeptId)?.sla_hours || 48) : 48;
 
@@ -49,7 +50,7 @@ const AuthorityQueue = () => {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Status updated" });
-      setIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, status: newStatus } : i)));
+      setRefreshKey((k) => k + 1);
     }
   };
 

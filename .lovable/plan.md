@@ -1,36 +1,31 @@
 
 
-## Problem
+## Analysis
 
-The Auth page has a `useEffect` that calls `signOut()` whenever a user is detected. This creates an infinite loop: user signs in → `onAuthStateChange` fires → Auth component detects user → signs them out → repeat. The network logs confirm this: login succeeds (200), then immediately signs out (204), then logs in again, endlessly.
+Two issues found:
+
+1. **Issues have no `department_id`**: The `submit-issue` edge function never assigns a `department_id` when creating issues. The authority dashboard filters by `department_id`, so issues with `null` department never appear.
+
+2. **No real-time updates**: The authority dashboard only fetches on mount and when filters change. New issues from citizens don't appear until manual refresh.
 
 ## Fix
 
-**File: `src/pages/Auth.tsx`**
+### 1. `supabase/functions/submit-issue/index.ts` - Auto-assign department based on category
 
-1. Remove the auto-signout `useEffect`
-2. Restore the redirect logic: when a user is logged in and has a role, redirect them to their dashboard (`/citizen`, `/authority`, or `/admin`)
-3. While loading, show nothing (or a spinner) to prevent flash
+After creating the issue, look up the matching department and assign it:
+- Map categories to department names: `roads` → "Roads & Infrastructure", `water`/`sanitation` → "Water & Sanitation", `electricity` → "Electricity & Power"
+- Query the `departments` table for the matching department
+- Set `department_id` on the new issue insert
 
-```
-// Remove this:
-useEffect(() => {
-  if (!loading && user) {
-    supabase.auth.signOut();
-  }
-}, [loading, user]);
+### 2. Fix existing issues with null `department_id`
 
-// Replace with:
-if (loading) return null;
-if (user && role) {
-  const redirectMap = { citizen: "/citizen", authority: "/authority", admin: "/admin" };
-  return <Navigate to={redirectMap[role] || "/citizen"} replace />;
-}
-```
+Run a migration to update existing issues that have `department_id = null` to map them to the correct department based on their category.
 
-This ensures:
-- Signing in as admin → redirects to `/admin`
-- Signing in as citizen → redirects to `/citizen`
-- Signing in as authority → redirects to `/authority`
-- Visiting `/auth` while not logged in → shows the login forms
+### 3. `src/pages/authority/AuthorityDashboard.tsx` - Add realtime subscription
+
+Add a Supabase realtime subscription on the `issues` table filtered by `department_id`. On any INSERT/UPDATE/DELETE event, increment `refreshKey` to trigger a re-fetch of both issues and stats.
+
+### 4. `src/pages/authority/AuthorityQueue.tsx` - Add realtime subscription
+
+Same realtime subscription pattern as the dashboard.
 

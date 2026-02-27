@@ -20,6 +20,7 @@ const AuthorityDashboard = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, resolved: 0, escalated: 0, avgTime: 0 });
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const isAdmin = role === "admin";
   const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
@@ -55,7 +56,25 @@ const AuthorityDashboard = () => {
       setLoading(false);
     };
     fetchIssues();
-  }, [effectiveDeptId, filter]);
+  }, [effectiveDeptId, filter, refreshKey]);
+
+  // Realtime subscription for live updates
+  useEffect(() => {
+    const channelFilter = effectiveDeptId
+      ? { event: '*' as const, schema: 'public', table: 'issues', filter: `department_id=eq.${effectiveDeptId}` }
+      : { event: '*' as const, schema: 'public', table: 'issues' };
+
+    const channel = supabase
+      .channel('authority-dashboard-realtime')
+      .on('postgres_changes', channelFilter, () => {
+        setRefreshKey((k) => k + 1);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [effectiveDeptId]);
 
   const sla = effectiveDeptId ? (departments.find((d) => d.id === effectiveDeptId)?.sla_hours || 48) : 48;
 
@@ -65,7 +84,7 @@ const AuthorityDashboard = () => {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Status updated" });
-      setIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, status: newStatus } : i)));
+      setRefreshKey((k) => k + 1);
     }
   };
 

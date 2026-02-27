@@ -42,9 +42,9 @@ const App = () => (
             <Route path="/citizen/leaderboard" element={<ProtectedRoute allowedRoles={["citizen"]}><Leaderboard /></ProtectedRoute>} />
 
             {/* Authority Routes */}
-            <Route path="/authority" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityDashboard /></ProtectedRoute>} />
-            <Route path="/authority/queue" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityQueue /></ProtectedRoute>} />
-            <Route path="/authority/stats" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityStats /></ProtectedRoute>} />
+            <Route path="/authority" element={<ProtectedRoute allowedRoles={["authority", "admin"]}><AuthorityDashboard /></ProtectedRoute>} />
+            <Route path="/authority/queue" element={<ProtectedRoute allowedRoles={["authority", "admin"]}><AuthorityQueue /></ProtectedRoute>} />
+            <Route path="/authority/stats" element={<ProtectedRoute allowedRoles={["authority", "admin"]}><AuthorityStats /></ProtectedRoute>} />
             <Route path="/authority/issues/:id" element={<ProtectedRoute allowedRoles={["authority"]}><IssueDetail /></ProtectedRoute>} />
 
             {/* Admin Routes */}

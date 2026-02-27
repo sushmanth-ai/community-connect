@@ -14,14 +14,10 @@ import { toast } from "@/hooks/use-toast";
 import { differenceInHours } from "date-fns";
 import { Link } from "react-router-dom";
 import { XCircle } from "lucide-react";
-import { AcceptIssueDialog } from "@/components/issues/AcceptIssueDialog";
-import { DeclineIssueDialog } from "@/components/issues/DeclineIssueDialog";
-import { ProgressUpdateDialog } from "@/components/issues/ProgressUpdateDialog";
 
 const AuthorityQueue = () => {
   const { departmentId, mandalId, role } = useAuth();
   const [issues, setIssues] = useState<any[]>([]);
-  const [workDetails, setWorkDetails] = useState<Record<string, any>>({});
   const [filter, setFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState<string>("all");
   const [departments, setDepartments] = useState<any[]>([]);
@@ -31,11 +27,6 @@ const AuthorityQueue = () => {
   const [cancelIssueId, setCancelIssueId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
-
-  const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
-  const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
-  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
-  const [selectedIssueId, setSelectedIssueId] = useState("");
 
   const isAdmin = role === "admin";
   const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
@@ -55,16 +46,7 @@ const AuthorityQueue = () => {
       if (effectiveMandalId) query = query.eq("mandal_id", effectiveMandalId);
       if (filter !== "all") query = query.eq("status", filter as any);
       const { data } = await query;
-      const issuesList = data || [];
-      setIssues(issuesList);
-
-      if (issuesList.length > 0) {
-        const ids = issuesList.map(i => i.id);
-        const { data: wd } = await supabase.from("issue_work_details" as any).select("*").in("issue_id", ids);
-        const map: Record<string, any> = {};
-        (wd || []).forEach((w: any) => { map[w.issue_id] = w; });
-        setWorkDetails(map);
-      }
+      setIssues(data || []);
       setLoading(false);
     };
     fetchIssues();
@@ -74,19 +56,29 @@ const AuthorityQueue = () => {
     const channelFilter = effectiveDeptId
       ? { event: '*' as const, schema: 'public', table: 'issues', filter: `department_id=eq.${effectiveDeptId}` }
       : { event: '*' as const, schema: 'public', table: 'issues' };
-    const channel = supabase.channel('authority-queue-realtime')
-      .on('postgres_changes', channelFilter, () => setRefreshKey((k) => k + 1))
+
+    const channel = supabase
+      .channel('authority-queue-realtime')
+      .on('postgres_changes', channelFilter, () => {
+        setRefreshKey((k) => k + 1);
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [effectiveDeptId]);
 
   const sla = effectiveDeptId ? (departments.find((d) => d.id === effectiveDeptId)?.sla_hours || 48) : 48;
-  const refresh = () => setRefreshKey((k) => k + 1);
 
-  const handleStartWork = async (issueId: string) => {
-    const { error } = await supabase.from("issues").update({ status: "work_started" as any }).eq("id", issueId);
-    if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Work started" }); refresh(); }
+  const updateStatus = async (issueId: string, newStatus: string) => {
+    const { error } = await supabase.from("issues").update({ status: newStatus as any }).eq("id", issueId);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Status updated" });
+      setRefreshKey((k) => k + 1);
+    }
   };
 
   const handleCancelIssue = async () => {
@@ -95,9 +87,16 @@ const AuthorityQueue = () => {
       return;
     }
     setCancelling(true);
-    const { error } = await supabase.from("issues").update({ status: "cancelled" as any, cancellation_reason: cancelReason.trim() }).eq("id", cancelIssueId);
-    if (error) toast({ title: "Cancel failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Issue cancelled" }); refresh(); }
+    const { error } = await supabase
+      .from("issues")
+      .update({ status: "cancelled" as any, cancellation_reason: cancelReason.trim() })
+      .eq("id", cancelIssueId);
+    if (error) {
+      toast({ title: "Cancel failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Issue cancelled" });
+      setRefreshKey((k) => k + 1);
+    }
     setCancelling(false);
     setCancelDialogOpen(false);
     setCancelReason("");
@@ -115,7 +114,9 @@ const AuthorityQueue = () => {
                 <SelectTrigger className="w-48"><SelectValue placeholder="All Departments" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  {departments.map((d) => (<SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>))}
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
@@ -124,13 +125,9 @@ const AuthorityQueue = () => {
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="accepted">Accepted</SelectItem>
-                <SelectItem value="work_started">Work Started</SelectItem>
                 <SelectItem value="in_progress">In Progress</SelectItem>
                 <SelectItem value="escalated">Escalated</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="resolved">Resolved</SelectItem>
-                <SelectItem value="declined">Declined</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
@@ -146,8 +143,7 @@ const AuthorityQueue = () => {
             {issues.map((issue) => {
               const hoursElapsed = differenceInHours(new Date(), new Date(issue.created_at));
               const remaining = sla - hoursElapsed;
-              const isOverdue = remaining <= 0 && !["resolved", "completed", "cancelled", "declined"].includes(issue.status);
-              const wd = workDetails[issue.id];
+              const isOverdue = remaining <= 0 && issue.status !== "resolved" && issue.status !== "cancelled";
 
               return (
                 <Card key={issue.id} className={`group hover:shadow-lg hover:scale-[1.01] transition-all duration-300 ${isOverdue ? "border-destructive/50 bg-destructive/5" : "hover:border-primary/30"}`}>
@@ -159,12 +155,9 @@ const AuthorityQueue = () => {
                         <div className="flex items-center gap-3 mt-2 flex-wrap">
                           <StatusBadge status={issue.status} />
                           <PriorityBadge score={issue.priority_score} />
-                          {wd && wd.progress_percentage > 0 && (
-                            <span className="text-xs font-medium text-primary">{wd.progress_percentage}% done</span>
-                          )}
                           {isOverdue ? (
                             <span className="text-xs text-destructive font-medium">⚠ SLA Overdue by {Math.abs(remaining)}h</span>
-                          ) : !["resolved", "completed", "cancelled", "declined"].includes(issue.status) ? (
+                          ) : issue.status !== "resolved" && issue.status !== "cancelled" ? (
                             <span className="text-xs text-muted-foreground">{remaining}h remaining</span>
                           ) : null}
                         </div>
@@ -174,21 +167,27 @@ const AuthorityQueue = () => {
                       </Link>
                       <div className="flex gap-2 flex-wrap">
                         {issue.status === "open" && (
-                          <>
-                            <Button size="sm" onClick={() => { setSelectedIssueId(issue.id); setAcceptDialogOpen(true); }}>Accept</Button>
-                            <Button size="sm" variant="destructive" onClick={() => { setSelectedIssueId(issue.id); setDeclineDialogOpen(true); }}>Decline</Button>
-                          </>
+                          <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => updateStatus(issue.id, "in_progress")}>
+                            Start Work
+                          </Button>
                         )}
-                        {issue.status === "accepted" && (
-                          <Button size="sm" variant="outline" onClick={() => handleStartWork(issue.id)}>Start Work</Button>
+                        {(issue.status === "in_progress" || issue.status === "open") && (
+                          <Button size="sm" className="bg-gradient-to-r from-secondary to-primary hover:opacity-90" onClick={() => updateStatus(issue.id, "resolved")}>
+                            Resolve
+                          </Button>
                         )}
-                        {(issue.status === "work_started" || issue.status === "accepted") && wd && (
-                          <Button size="sm" variant="secondary" onClick={() => { setSelectedIssueId(issue.id); setProgressDialogOpen(true); }}>Update Progress</Button>
-                        )}
-                        {!["resolved", "completed", "cancelled", "declined"].includes(issue.status) && (
-                          <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                            onClick={() => { setCancelIssueId(issue.id); setCancelDialogOpen(true); }}>
-                            <XCircle className="h-3 w-3 mr-1" /> Cancel
+                        {issue.status !== "resolved" && issue.status !== "cancelled" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={() => {
+                              setCancelIssueId(issue.id);
+                              setCancelDialogOpen(true);
+                            }}
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Cancel
                           </Button>
                         )}
                       </div>
@@ -201,20 +200,19 @@ const AuthorityQueue = () => {
         )}
       </div>
 
-      <AcceptIssueDialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen} issueId={selectedIssueId} onSuccess={refresh} />
-      <DeclineIssueDialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen} issueId={selectedIssueId} onSuccess={refresh} />
-      {progressDialogOpen && workDetails[selectedIssueId] && (
-        <ProgressUpdateDialog open={progressDialogOpen} onOpenChange={setProgressDialogOpen} issueId={selectedIssueId}
-          currentProgress={workDetails[selectedIssueId]?.progress_percentage || 0}
-          budgetAllocated={workDetails[selectedIssueId]?.budget_allocated || 0} onSuccess={refresh} />
-      )}
-
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Cancel Issue</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Cancel Issue</DialogTitle>
+          </DialogHeader>
           <div className="space-y-3">
             <Label>Reason for cancellation</Label>
-            <Textarea placeholder="Explain why..." value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} />
+            <Textarea
+              placeholder="Explain why this issue is being cancelled (e.g. duplicate, not valid, insufficient info)..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Back</Button>

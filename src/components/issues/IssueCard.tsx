@@ -21,11 +21,11 @@ interface Issue {
 export const IssueCard = ({ issue, linkPrefix = "/citizen" }: { issue: Issue; linkPrefix?: string }) => {
   return (
     <Link to={`${linkPrefix}/issues/${issue.id}`}>
-      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+      <Card className="group hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border-l-4 border-l-transparent hover:border-l-primary">
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-foreground truncate">{issue.title}</h3>
+              <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">{issue.title}</h3>
               <p className="text-sm text-muted-foreground capitalize mt-1">{issue.category.replace("_", " ")}</p>
             </div>
             <div className="flex flex-col items-end gap-1">

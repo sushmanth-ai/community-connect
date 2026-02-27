@@ -4,10 +4,10 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IssueMap } from "@/components/map/IssueMap";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StatusBadge } from "@/components/issues/StatusBadge";
 import { PriorityBadge } from "@/components/issues/PriorityBadge";
-import { BarChart3, CheckCircle, AlertTriangle, Clock, TrendingUp, Users } from "lucide-react";
+import { BarChart3, CheckCircle, AlertTriangle, Clock, Users } from "lucide-react";
 import { differenceInHours } from "date-fns";
+import { Link } from "react-router-dom";
 
 const AdminDashboard = () => {
   const [issues, setIssues] = useState<any[]>([]);
@@ -16,18 +16,16 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAll = async () => {
-      const [issuesRes, deptsRes, leadersRes] = await Promise.all([
-        supabase.from("issues").select("*").order("priority_score", { ascending: false }),
-        supabase.from("departments").select("*"),
-        supabase.from("profiles").select("id, name, points_total").order("points_total", { ascending: false }).limit(10),
-      ]);
+    Promise.all([
+      supabase.from("issues").select("*").order("priority_score", { ascending: false }),
+      supabase.from("departments").select("*"),
+      supabase.from("profiles").select("id, name, points_total").order("points_total", { ascending: false }).limit(10),
+    ]).then(([issuesRes, deptsRes, leadersRes]) => {
       if (issuesRes.data) setIssues(issuesRes.data);
       if (deptsRes.data) setDepartments(deptsRes.data);
       if (leadersRes.data) setLeaders(leadersRes.data);
       setLoading(false);
-    };
-    fetchAll();
+    });
   }, []);
 
   const totalIssues = issues.length;
@@ -56,19 +54,19 @@ const AdminDashboard = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Admin Dashboard</h1>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard icon={<BarChart3 />} label="Total Issues" value={totalIssues} />
-          <StatCard icon={<CheckCircle />} label="Resolved %" value={`${resolvedPct}%`} />
-          <StatCard icon={<Clock />} label="Avg Resolution" value={`${avgResTime}h`} />
-          <StatCard icon={<AlertTriangle />} label="Escalation Rate" value={`${escalationRate}%`} />
-          <StatCard icon={<Users />} label="Active Citizens" value={leaders.length} />
+          <GradientStatCard icon={<BarChart3 />} label="Total Issues" value={totalIssues} gradient="from-violet-500 to-purple-500" />
+          <GradientStatCard icon={<CheckCircle />} label="Resolved %" value={`${resolvedPct}%`} gradient="from-emerald-500 to-teal-400" />
+          <GradientStatCard icon={<Clock />} label="Avg Resolution" value={`${avgResTime}h`} gradient="from-blue-500 to-cyan-400" />
+          <GradientStatCard icon={<AlertTriangle />} label="Escalation Rate" value={`${escalationRate}%`} gradient="from-red-500 to-rose-400" />
+          <GradientStatCard icon={<Users />} label="Active Citizens" value={leaders.length} gradient="from-amber-500 to-orange-400" />
         </div>
 
         {/* Map */}
-        <Card>
+        <Card className="hover:shadow-lg transition-shadow overflow-hidden">
           <CardHeader><CardTitle>Issue Map</CardTitle></CardHeader>
           <CardContent>
             <IssueMap issues={issues} height="400px" showHeatmap />
@@ -77,7 +75,7 @@ const AdminDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Department Performance */}
-          <Card>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader><CardTitle>Department Performance</CardTitle></CardHeader>
             <CardContent>
               <Table>
@@ -92,7 +90,7 @@ const AdminDashboard = () => {
                 </TableHeader>
                 <TableBody>
                   {deptStats.map((d) => (
-                    <TableRow key={d.id}>
+                    <TableRow key={d.id} className="hover:bg-primary/5 transition-colors">
                       <TableCell className="font-medium">{d.name}</TableCell>
                       <TableCell className="text-right">{d.total}</TableCell>
                       <TableCell className="text-right">{d.resolved}</TableCell>
@@ -106,10 +104,10 @@ const AdminDashboard = () => {
           </Card>
 
           {/* Escalated Issues */}
-          <Card>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-critical" /> Escalated Issues
+                <AlertTriangle className="h-5 w-5 text-destructive" /> Escalated Issues
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -118,13 +116,15 @@ const AdminDashboard = () => {
               ) : (
                 <div className="space-y-3">
                   {escalated.slice(0, 10).map((issue) => (
-                    <div key={issue.id} className="flex items-center justify-between p-3 rounded-lg bg-critical/5 border border-critical/20">
-                      <div>
-                        <p className="font-medium text-sm">{issue.title}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{issue.category.replace("_", " ")}</p>
+                    <Link key={issue.id} to={`/admin/issues/${issue.id}`}>
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-destructive/5 border border-destructive/20 hover:bg-destructive/10 hover:scale-[1.02] transition-all duration-200 cursor-pointer">
+                        <div>
+                          <p className="font-medium text-sm">{issue.title}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{issue.category.replace("_", " ")}</p>
+                        </div>
+                        <PriorityBadge score={issue.priority_score} />
                       </div>
-                      <PriorityBadge score={issue.priority_score} />
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}
@@ -133,7 +133,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Leaderboard */}
-        <Card>
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader><CardTitle>Top Citizens</CardTitle></CardHeader>
           <CardContent>
             <Table>
@@ -146,7 +146,7 @@ const AdminDashboard = () => {
               </TableHeader>
               <TableBody>
                 {leaders.map((l, i) => (
-                  <TableRow key={l.id}>
+                  <TableRow key={l.id} className="hover:bg-primary/5 transition-colors">
                     <TableCell>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</TableCell>
                     <TableCell className="font-medium">{l.name}</TableCell>
                     <TableCell className="text-right font-semibold">{l.points_total}</TableCell>
@@ -161,10 +161,12 @@ const AdminDashboard = () => {
   );
 };
 
-const StatCard = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: any }) => (
-  <Card>
+const GradientStatCard = ({ icon, label, value, gradient }: { icon: React.ReactNode; label: string; value: any; gradient: string }) => (
+  <Card className="group hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden">
     <CardContent className="p-4 flex items-center gap-4">
-      <div className="text-primary">{icon}</div>
+      <div className={`p-3 rounded-xl bg-gradient-to-br ${gradient} text-white shadow-lg group-hover:scale-110 transition-transform`}>
+        {icon}
+      </div>
       <div>
         <p className="text-2xl font-bold">{value}</p>
         <p className="text-sm text-muted-foreground">{label}</p>

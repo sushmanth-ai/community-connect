@@ -51,13 +51,15 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground transform transition-transform duration-200 lg:translate-x-0 lg:static",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-sidebar to-sidebar/95 text-sidebar-foreground transform transition-transform duration-300 lg:translate-x-0 lg:static shadow-2xl",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-2 p-6 border-b border-sidebar-border">
-            <Shield className="h-6 w-6 text-sidebar-primary" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-primary to-secondary">
+              <Shield className="h-5 w-5 text-white" />
+            </div>
             <span className="text-lg font-bold">ResolvIt</span>
             <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}>
               <X className="h-5 w-5" />
@@ -71,10 +73,10 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 to={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200",
                   location.pathname === item.href
-                    ? "bg-sidebar-accent text-sidebar-primary font-medium"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    ? "bg-gradient-to-r from-primary/20 to-secondary/10 text-sidebar-primary font-medium shadow-sm"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:translate-x-1"
                 )}
               >
                 {item.icon}
@@ -85,7 +87,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
           <div className="p-4 border-t border-sidebar-border">
             <div className="flex items-center gap-3 px-3 py-2">
-              <div className="h-8 w-8 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-sidebar-primary text-sm font-medium">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-sm font-medium shadow-lg">
                 {profile?.name?.charAt(0)?.toUpperCase() || "?"}
               </div>
               <div className="flex-1 min-w-0">
@@ -96,7 +98,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <Button
               variant="ghost"
               size="sm"
-              className="w-full mt-2 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+              className="w-full mt-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-destructive/20"
               onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4 mr-2" />
@@ -108,13 +110,13 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-foreground/20 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b px-4 py-3 flex items-center gap-4">
-          <button className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b px-4 py-3 flex items-center gap-4 shadow-sm">
+          <button className="lg:hidden hover:bg-muted rounded-lg p-2 transition-colors" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />

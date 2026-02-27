@@ -20,7 +20,6 @@ const AuthorityDashboard = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, resolved: 0, escalated: 0, avgTime: 0 });
   const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const isAdmin = role === "admin";
   const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
@@ -56,7 +55,7 @@ const AuthorityDashboard = () => {
       setLoading(false);
     };
     fetchIssues();
-  }, [effectiveDeptId, filter, refreshKey]);
+  }, [effectiveDeptId, filter]);
 
   const sla = effectiveDeptId ? (departments.find((d) => d.id === effectiveDeptId)?.sla_hours || 48) : 48;
 
@@ -66,7 +65,7 @@ const AuthorityDashboard = () => {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Status updated" });
-      setRefreshKey((k) => k + 1);
+      setIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, status: newStatus } : i)));
     }
   };
 

@@ -42,24 +42,6 @@ const AuthorityQueue = () => {
     fetchIssues();
   }, [effectiveDeptId, filter, refreshKey]);
 
-  // Realtime subscription for live updates
-  useEffect(() => {
-    const channelFilter = effectiveDeptId
-      ? { event: '*' as const, schema: 'public', table: 'issues', filter: `department_id=eq.${effectiveDeptId}` }
-      : { event: '*' as const, schema: 'public', table: 'issues' };
-
-    const channel = supabase
-      .channel('authority-queue-realtime')
-      .on('postgres_changes', channelFilter, () => {
-        setRefreshKey((k) => k + 1);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [effectiveDeptId]);
-
   const sla = effectiveDeptId ? (departments.find((d) => d.id === effectiveDeptId)?.sla_hours || 48) : 48;
 
   const updateStatus = async (issueId: string, newStatus: string) => {

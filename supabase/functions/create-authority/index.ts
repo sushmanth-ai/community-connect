@@ -47,9 +47,9 @@ Deno.serve(async (req) => {
     }
 
     const callerId = claimsData.claims.sub;
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     // Check admin role
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     const { data: roleData } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -96,7 +96,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create auth user
+    let userId: string;
+
+    // Try to create new user first
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -105,19 +107,28 @@ Deno.serve(async (req) => {
     });
 
     if (createError) {
-      return new Response(JSON.stringify({ error: createError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // If user already exists, look them up
+      if (createError.message.includes("already been registered")) {
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = listData?.users?.find((u) => u.email === email);
+        if (!existingUser) {
+          return new Response(JSON.stringify({ error: "User exists but could not be found" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        userId = existingUser.id;
+      } else {
+        return new Response(JSON.stringify({ error: createError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      userId = newUser.user.id;
     }
 
-    const userId = newUser.user.id;
-
-    // Hash aadhaar and update profile
-    const { error: hashError } = await supabaseAdmin.rpc("_internal_noop", {}).catch(() => ({ error: null }));
-
-    // Use raw SQL via profiles update with hashed aadhaar
-    // First update the profile with mobile_number and aadhaar_hash
+    // Update profile with mobile_number and department_id
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .update({
@@ -131,24 +142,21 @@ Deno.serve(async (req) => {
       console.error("Profile update error:", profileError);
     }
 
-    // Hash the aadhaar using pgcrypto via a direct SQL call
-    // We use a raw postgres function call to hash
-    const { data: hashData, error: hashErr } = await supabaseAdmin.rpc("_hash_aadhaar", {
+    // Hash the aadhaar using pgcrypto
+    const { error: hashErr } = await supabaseAdmin.rpc("_hash_aadhaar", {
       _user_id: userId,
       _aadhaar: aadhaar_number,
     });
 
     if (hashErr) {
-      console.error("Aadhaar hash error, using fallback:", hashErr);
-      // Fallback: store using crypt via direct update 
-      // We'll create the hash in SQL
-      const { error: sqlErr } = await supabaseAdmin
-        .from("profiles")
-        .update({ aadhaar_hash: aadhaar_number }) // temporary - will be fixed by migration
-        .eq("id", userId);
+      console.error("Aadhaar hash error:", hashErr);
+      return new Response(JSON.stringify({ error: "Failed to store Aadhaar credentials" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Update user_role from citizen to authority with department
+    // Update user_role to authority with department
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
       .update({ role: "authority" as any, department_id })

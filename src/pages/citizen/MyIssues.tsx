@@ -23,6 +23,10 @@ const MyIssues = () => {
     fetchIssues();
   }, [user, filter]);
 
+  const handleDelete = (id: string) => {
+    setIssues((prev) => prev.filter((i) => i.id !== id));
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -36,6 +40,7 @@ const MyIssues = () => {
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="resolved">Resolved</SelectItem>
               <SelectItem value="escalated">Escalated</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -44,7 +49,11 @@ const MyIssues = () => {
         ) : issues.length === 0 ? (
           <p className="text-muted-foreground text-center py-12">No issues found.</p>
         ) : (
-          <div className="space-y-3">{issues.map((i) => <IssueCard key={i.id} issue={i} />)}</div>
+          <div className="space-y-3">
+            {issues.map((i) => (
+              <IssueCard key={i.id} issue={i} showActions currentUserId={user?.id} onDelete={handleDelete} />
+            ))}
+          </div>
         )}
       </div>
     </AppLayout>

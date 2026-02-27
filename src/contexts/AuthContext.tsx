@@ -13,6 +13,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
+  authorityLogin: (mobile: string, aadhaar: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
 
@@ -51,7 +52,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Use setTimeout to avoid potential deadlock with Supabase auth
         setTimeout(() => fetchUserData(session.user.id), 0);
       } else {
         setRole(null);
@@ -90,6 +90,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
+  const authorityLogin = async (mobile: string, aadhaar: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("authority-login", {
+        body: { mobile_number: mobile, aadhaar_number: aadhaar },
+      });
+
+      if (error) {
+        return { error: { message: error.message || "Login failed" } };
+      }
+
+      if (data?.error) {
+        return { error: { message: data.error } };
+      }
+
+      if (data?.session) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        if (sessionError) {
+          return { error: { message: sessionError.message } };
+        }
+      }
+
+      return { error: null };
+    } catch (e: any) {
+      return { error: { message: e.message || "Login failed" } };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setRole(null);
@@ -98,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, role, departmentId, profile, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, departmentId, profile, loading, signUp, signIn, authorityLogin, signOut }}>
       {children}
     </AuthContext.Provider>
   );

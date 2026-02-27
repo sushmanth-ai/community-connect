@@ -12,11 +12,15 @@ import { differenceInHours } from "date-fns";
 import { Link } from "react-router-dom";
 
 const AuthorityQueue = () => {
-  const { departmentId } = useAuth();
+  const { departmentId, role } = useAuth();
   const [issues, setIssues] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
+  const [deptFilter, setDeptFilter] = useState<string>("all");
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const isAdmin = role === "admin";
+  const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
 
   useEffect(() => {
     supabase.from("departments").select("*").then(({ data }) => {
@@ -25,18 +29,19 @@ const AuthorityQueue = () => {
   }, []);
 
   useEffect(() => {
-    if (!departmentId) return;
     const fetchIssues = async () => {
-      let query = supabase.from("issues").select("*").eq("department_id", departmentId).order("priority_score", { ascending: false });
+      setLoading(true);
+      let query = supabase.from("issues").select("*").order("priority_score", { ascending: false });
+      if (effectiveDeptId) query = query.eq("department_id", effectiveDeptId);
       if (filter !== "all") query = query.eq("status", filter as any);
       const { data } = await query;
       setIssues(data || []);
       setLoading(false);
     };
     fetchIssues();
-  }, [departmentId, filter]);
+  }, [effectiveDeptId, filter]);
 
-  const sla = departments.find((d) => d.id === departmentId)?.sla_hours || 48;
+  const sla = effectiveDeptId ? (departments.find((d) => d.id === effectiveDeptId)?.sla_hours || 48) : 48;
 
   const updateStatus = async (issueId: string, newStatus: string) => {
     const { error } = await supabase.from("issues").update({ status: newStatus as any }).eq("id", issueId);
@@ -51,18 +56,31 @@ const AuthorityQueue = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Issue Queue</h1>
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="escalated">Escalated</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Select value={deptFilter} onValueChange={setDeptFilter}>
+                <SelectTrigger className="w-48"><SelectValue placeholder="All Departments" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="escalated">Escalated</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {loading ? (

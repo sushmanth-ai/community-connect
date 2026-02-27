@@ -3,24 +3,40 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, CheckCircle, AlertTriangle, Clock, TrendingUp } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BarChart3, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import { differenceInHours } from "date-fns";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 const COLORS = ["hsl(210, 70%, 55%)", "hsl(38, 92%, 50%)", "hsl(152, 60%, 40%)", "hsl(0, 72%, 51%)"];
 
 const AuthorityStats = () => {
-  const { departmentId } = useAuth();
+  const { departmentId, role } = useAuth();
   const [issues, setIssues] = useState<any[]>([]);
+  const [deptFilter, setDeptFilter] = useState<string>("all");
+  const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const isAdmin = role === "admin";
+  const effectiveDeptId = isAdmin ? (deptFilter !== "all" ? deptFilter : null) : departmentId;
+
   useEffect(() => {
-    if (!departmentId) return;
-    supabase.from("issues").select("*").eq("department_id", departmentId).then(({ data }) => {
+    supabase.from("departments").select("*").then(({ data }) => {
+      if (data) setDepartments(data);
+    });
+  }, []);
+
+  useEffect(() => {
+    const fetchIssues = async () => {
+      setLoading(true);
+      let query = supabase.from("issues").select("*");
+      if (effectiveDeptId) query = query.eq("department_id", effectiveDeptId);
+      const { data } = await query;
       setIssues(data || []);
       setLoading(false);
-    });
-  }, [departmentId]);
+    };
+    fetchIssues();
+  }, [effectiveDeptId]);
 
   const resolved = issues.filter((i) => i.status === "resolved");
   const open = issues.filter((i) => i.status === "open");
@@ -52,7 +68,20 @@ const AuthorityStats = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Performance Stats</h1>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Performance Stats</h1>
+          {isAdmin && (
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="All Departments" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <GradientStatCard icon={<BarChart3 />} label="Total Issues" value={issues.length} gradient="from-blue-500 to-cyan-400" />

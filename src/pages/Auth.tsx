@@ -1,0 +1,158 @@
+import { useState } from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/hooks/use-toast";
+import { Shield, MapPin, Users } from "lucide-react";
+
+const Auth = () => {
+  const { user, role, loading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!loading && user && role) {
+    const redirectMap: Record<string, string> = {
+      citizen: "/citizen",
+      authority: "/authority",
+      admin: "/admin",
+    };
+    return <Navigate to={redirectMap[role] || "/citizen"} replace />;
+  }
+
+  return (
+    <div className="min-h-screen flex">
+      {/* Left panel - branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-center items-center p-12 text-primary-foreground">
+        <div className="max-w-md space-y-8">
+          <div className="flex items-center gap-3">
+            <Shield className="h-10 w-10" />
+            <h1 className="text-4xl font-bold tracking-tight">ResolvIt</h1>
+          </div>
+          <p className="text-xl opacity-90">
+            From complaints to accountability — turning public voices into measurable action.
+          </p>
+          <div className="space-y-4 pt-6">
+            <Feature icon={<MapPin className="h-5 w-5" />} text="Report civic issues with precise location mapping" />
+            <Feature icon={<Users className="h-5 w-5" />} text="Track resolution progress in real-time" />
+            <Feature icon={<Shield className="h-5 w-5" />} text="AI-powered priority scoring and duplicate detection" />
+          </div>
+        </div>
+      </div>
+
+      {/* Right panel - auth forms */}
+      <div className="flex-1 flex items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center gap-2 lg:hidden mb-2">
+              <Shield className="h-6 w-6 text-primary" />
+              <span className="text-xl font-bold">ResolvIt</span>
+            </div>
+            <CardTitle>Welcome</CardTitle>
+            <CardDescription>Sign in to your account or create a new one</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="login">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+              <TabsContent value="login">
+                <LoginForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
+              </TabsContent>
+              <TabsContent value="signup">
+                <SignupForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const Feature = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
+  <div className="flex items-center gap-3 opacity-80">
+    {icon}
+    <span>{text}</span>
+  </div>
+);
+
+const LoginForm = ({ isSubmitting, setIsSubmitting }: { isSubmitting: boolean; setIsSubmitting: (v: boolean) => void }) => {
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const { error } = await signIn(email, password);
+    if (error) {
+      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+    }
+    setIsSubmitting(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+      <div className="space-y-2">
+        <Label htmlFor="login-email">Email</Label>
+        <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="login-password">Password</Label>
+        <Input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+      </div>
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? "Signing in..." : "Sign In"}
+      </Button>
+    </form>
+  );
+};
+
+const SignupForm = ({ isSubmitting, setIsSubmitting }: { isSubmitting: boolean; setIsSubmitting: (v: boolean) => void }) => {
+  const { signUp } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 6) {
+      toast({ title: "Password too short", description: "Must be at least 6 characters", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    const { error } = await signUp(email, password, name);
+    if (error) {
+      toast({ title: "Signup failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Check your email", description: "We sent you a confirmation link." });
+    }
+    setIsSubmitting(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+      <div className="space-y-2">
+        <Label htmlFor="signup-name">Full Name</Label>
+        <Input id="signup-name" value={name} onChange={e => setName(e.target.value)} required />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="signup-email">Email</Label>
+        <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="signup-password">Password</Label>
+        <Input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+      </div>
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? "Creating account..." : "Create Account"}
+      </Button>
+    </form>
+  );
+};
+
+export default Auth;

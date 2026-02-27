@@ -359,6 +359,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _hash_aadhaar: {
+        Args: { _aadhaar: string; _user_id: string }
+        Returns: undefined
+      }
       calculate_priority_score: {
         Args: {
           _created_at: string

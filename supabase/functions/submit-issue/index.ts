@@ -148,7 +148,21 @@ serve(async (req) => {
       );
     }
 
-    // 2. Create new issue
+    // 2. Look up department based on category
+    const categoryToDept: Record<string, string> = {
+      roads: "Roads & Infrastructure",
+      water: "Water & Sanitation",
+      sanitation: "Water & Sanitation",
+      electricity: "Electricity & Power",
+    };
+    const deptName = categoryToDept[category] || "Roads & Infrastructure";
+    const { data: dept } = await supabase
+      .from("departments")
+      .select("id")
+      .eq("name", deptName)
+      .single();
+
+    // 3. Create new issue
     const priorityScore = 2 + severity; // report_count(1)*2 + severity
 
     const { data: newIssue, error: insertError } = await supabase
@@ -163,6 +177,7 @@ serve(async (req) => {
         image_url,
         reporter_id: user.id,
         priority_score: priorityScore,
+        department_id: dept?.id || null,
       })
       .select()
       .single();

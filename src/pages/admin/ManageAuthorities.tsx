@@ -96,8 +96,8 @@ const ManageAuthorities = () => {
 
     setFormLoading(true);
     const { data, error } = await supabase.functions.invoke("create-authority", {
-      body: { name, email, phone, gov_id: govId, mandal_id: mandalId, department_id: deptId, active_status: activeToggle },
-    });
+  body: { name, email, phone, gov_id: govId, mandal_id: mandalId, department_id: deptId, active_status: activeToggle },
+});
 
     if (error || data?.error) {
       toast({ title: "Failed", description: data?.error || error?.message, variant: "destructive" });
@@ -110,11 +110,11 @@ const ManageAuthorities = () => {
         dept_name: data.dept_name || "",
       });
       setCredentialsDialog(true);
-      if (data.email_sent) {
-        toast({ title: "✅ Credentials emailed", description: `Login details sent to ${data.email}` });
-      } else {
-        toast({ title: "⚠️ Email not sent", description: "Please share credentials manually or retry.", variant: "destructive" });
-      }
+     if (data.email_sent) {
+  toast({ title: "✅ Credentials emailed", description: `Login details sent to ${data.email}` });
+} else {
+  toast({ title: "⚠️ Email not sent", description: "Please share credentials manually or retry.", variant: "destructive" });
+}
       setName(""); setEmail(""); setPhone(""); setGovId(""); setMandalId(""); setDeptId("");
       fetchAuthorities();
     }

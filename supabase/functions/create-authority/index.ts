@@ -1,261 +1,277 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function generateSecurePassword(length = 14): string {
-  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const lower = "abcdefghijklmnopqrstuvwxyz";
-  const digits = "0123456789";
-  const special = "!@#$%^&*";
-  const all = upper + lower + digits + special;
-  
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  
-  const password = [
-    upper[array[0] % upper.length],
-    lower[array[1] % lower.length],
-    digits[array[2] % digits.length],
-    special[array[3] % special.length],
-  ];
-  
-  for (let i = 4; i < length; i++) {
-    password.push(all[array[i] % all.length]);
-  }
-  
-  for (let i = password.length - 1; i > 0; i--) {
-    const j = array[i] % (i + 1);
-    [password[i], password[j]] = [password[j], password[i]];
-  }
-  
-  return password.join("");
-}
-
-async function sendCredentialsEmail(
-  to: string,
-  authorityName: string,
-  password: string,
-  mandalName: string,
-  deptName: string,
-  loginUrl: string
-): Promise<boolean> {
-  const serviceId = Deno.env.get("EMAILJS_SERVICE_ID");
-  const templateId = Deno.env.get("EMAILJS_TEMPLATE_ID");
-  const publicKey = Deno.env.get("EMAILJS_PUBLIC_KEY");
-  const privateKey = Deno.env.get("EMAILJS_PRIVATE_KEY");
-
-  if (!serviceId || !templateId || !publicKey || !privateKey) {
-    console.error("EmailJS credentials not configured");
-    return false;
-  }
-
-  try {
-    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service_id: serviceId,
-        template_id: templateId,
-        user_id: publicKey,
-        accessToken: privateKey,
-        template_params: {
-          to_email: to,
-          authority_name: authorityName,
-          password: password,
-          mandal_name: mandalName,
-          department_name: deptName,
-          login_url: loginUrl,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("EmailJS API error:", err);
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.error("Email send error:", e);
-    return false;
-  }
-}
-
-Deno.serve(async (req) => {
+serve(async (req) => {
+  // Handle CORS
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const {
+      name,
+      email,
+      phone,
+      gov_id,
+      mandal_id,
+      department_id,
+      active_status,
+      _action,
+      password,
+      mandal_name,
+      dept_name,
+      login_url,
+    } = await req.json();
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(
-      authHeader.replace("Bearer ", "")
+    // Initialize Supabase Admin client
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+    // If action is to resend email only
+    if (_action === "resend_email") {
+      const emailSent = await sendCredentialsEmail(
+        email,
+        password,
+        name,
+        mandal_name,
+        dept_name,
+        login_url
+      );
+
+      return new Response(
+        JSON.stringify({
+          email_sent: emailSent,
+          message: emailSent ? "Email sent successfully" : "Failed to send email",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        }
+      );
     }
 
-    const callerId = claimsData.claims.sub;
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    // Generate a random password
+    const generatedPassword = generatePassword();
 
-    const { data: roleData } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "admin")
-      .limit(1)
-      .single();
-
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: "Only admins can create authority accounts" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const body = await req.json();
-
-    // Handle resend email action
-    if (body._action === "resend_email") {
-      const { email: resendEmail, password: resendPassword, name: resendName, mandal_name, dept_name, login_url } = body;
-      const emailSent = await sendCredentialsEmail(resendEmail, resendName, resendPassword, mandal_name, dept_name, login_url);
-      return new Response(JSON.stringify({ success: true, email_sent: emailSent }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { name, email, phone, gov_id, mandal_id, department_id, active_status } = body;
-
-    if (!name || !email || !mandal_id || !department_id) {
-      return new Response(JSON.stringify({ error: "Name, email, mandal, and department are required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const generatedPassword = generateSecurePassword(14);
-    let userId: string;
-
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: generatedPassword,
       email_confirm: true,
-      user_metadata: { name },
     });
 
-    if (createError) {
-      if (createError.message.includes("already been registered")) {
-        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = listData?.users?.find((u) => u.email === email);
-        if (!existingUser) {
-          return new Response(JSON.stringify({ error: "User exists but could not be found" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        userId = existingUser.id;
-        await supabaseAdmin.auth.admin.updateUserById(userId, { password: generatedPassword });
-      } else {
-        return new Response(JSON.stringify({ error: createError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    } else {
-      userId = newUser.user.id;
+    if (authError) {
+      console.error("Auth creation error:", authError);
+      throw new Error(`Failed to create user: ${authError.message}`);
     }
 
+    const userId = authData.user.id;
+
+    // Create profile
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update({
+      .insert({
+        id: userId,
         name,
-        mobile_number: phone || null,
-        department_id,
+        mobile_number: phone,
+        gov_id,
         mandal_id,
-        gov_id: gov_id || null,
-        first_login: true,
-        active_status: active_status !== false,
-      })
-      .eq("id", userId);
+        active_status: active_status ?? true,
+      });
 
     if (profileError) {
-      console.error("Profile update error:", profileError);
+      console.error("Profile creation error:", profileError);
+      throw new Error(`Failed to create profile: ${profileError.message}`);
     }
 
-    const { data: existingRole } = await supabaseAdmin
+    // Create user role
+    const { error: roleError } = await supabaseAdmin
       .from("user_roles")
-      .select("id")
-      .eq("user_id", userId)
-      .limit(1)
+      .insert({
+        user_id: userId,
+        role: "authority",
+        department_id,
+      });
+
+    if (roleError) {
+      console.error("Role creation error:", roleError);
+      throw new Error(`Failed to assign role: ${roleError.message}`);
+    }
+
+    // Get mandal and department names
+    const { data: mandalData } = await supabaseAdmin
+      .from("mandals")
+      .select("name")
+      .eq("id", mandal_id)
       .single();
 
-    if (existingRole) {
-      await supabaseAdmin
-        .from("user_roles")
-        .update({ role: "authority" as any, department_id })
-        .eq("user_id", userId);
+    const { data: deptData } = await supabaseAdmin
+      .from("departments")
+      .select("name")
+      .eq("id", department_id)
+      .single();
+
+    // Send credentials email
+    let emailSent = false;
+    try {
+      emailSent = await sendCredentialsEmail(
+        email,
+        generatedPassword,
+        name,
+        mandalData?.name || "",
+        deptData?.name || "",
+        `${Deno.env.get("PUBLIC_SITE_URL") || "http://localhost:3000"}/auth`
+      );
+    } catch (emailError) {
+      console.error("Email sending error:", emailError);
+      // Don't fail the whole operation if email fails
     }
-
-    let mandalName = "N/A";
-    let deptName = "N/A";
-    const { data: mandalData } = await supabaseAdmin.from("mandals").select("name").eq("id", mandal_id).single();
-    if (mandalData) mandalName = mandalData.name;
-    const { data: deptData } = await supabaseAdmin.from("departments").select("name").eq("id", department_id).single();
-    if (deptData) deptName = deptData.name;
-
-    const loginUrl = `${req.headers.get("origin") || "https://resolvit.app"}/auth`;
-    const emailSent = await sendCredentialsEmail(email, name, generatedPassword, mandalName, deptName, loginUrl);
 
     return new Response(
       JSON.stringify({
         success: true,
         user_id: userId,
-        generated_password: generatedPassword,
         email,
+        generated_password: generatedPassword,
         email_sent: emailSent,
-        mandal_name: mandalName,
-        dept_name: deptName,
+        mandal_name: mandalData?.name || "",
+        dept_name: deptData?.name || "",
       }),
       {
-        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
       }
     );
-  } catch (e) {
-    console.error("Create authority error:", e);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (error) {
+    console.error("Error in create-authority function:", error);
+    return new Response(
+      JSON.stringify({
+        error: error.message || "Internal server error",
+        email_sent: false,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      }
+    );
   }
 });
+
+// Function to send credentials email
+async function sendCredentialsEmail(
+  email: string,
+  password: string,
+  name: string,
+  mandalName: string,
+  deptName: string,
+  loginUrl: string
+): Promise<boolean> {
+  try {
+    // Using Resend.com (recommended for Supabase)
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+      },
+      body: JSON.stringify({
+        from: Deno.env.get("RESEND_FROM_EMAIL") || "noreply@resolvit.in",
+        to: email,
+        subject: "Your ResolvIt Authority Login Credentials",
+        html: generateEmailHTML(name, email, password, mandalName, deptName, loginUrl),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Resend API error:", errorData);
+      return false;
+    }
+
+    console.log(`Email sent successfully to ${email}`);
+    return true;
+  } catch (error) {
+    console.error("Email sending exception:", error);
+    return false;
+  }
+}
+
+// Function to generate email HTML
+function generateEmailHTML(
+  name: string,
+  email: string,
+  password: string,
+  mandalName: string,
+  deptName: string,
+  loginUrl: string
+): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; }
+          .content { background: #f9f9f9; padding: 20px; margin: 20px 0; border-radius: 8px; }
+          .credentials { background: #fff; padding: 15px; border-left: 4px solid #667eea; margin: 15px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Welcome to ResolvIt</h1>
+            <p>Your Authority Account is Ready</p>
+          </div>
+
+          <div class="content">
+            <p>Hello <strong>${name}</strong>,</p>
+            <p>Your authority account has been created successfully in the ResolvIt system.</p>
+
+            <h3>Account Details:</h3>
+            <div class="credentials">
+              <p><strong>Mandal:</strong> ${mandalName}</p>
+              <p><strong>Department:</strong> ${deptName}</p>
+              <p><strong>Email:</strong> <code>${email}</code></p>
+              <p><strong>Password:</strong> <code>${password}</code></p>
+            </div>
+
+            <h3>Next Steps:</h3>
+            <ol>
+              <li>Visit <a href="${loginUrl}">${loginUrl}</a></li>
+              <li>Login with your email and password</li>
+              <li>Change your password on first login</li>
+              <li>Start managing issues in your jurisdiction</li>
+            </ol>
+
+            <p style="color: #d32f2f; font-weight: bold;">⚠️ Important: Keep your password confidential and change it immediately after first login.</p>
+          </div>
+
+          <div class="footer">
+            <p>This is an automated email. Please do not reply to this address.</p>
+            <p>&copy; 2024 ResolvIt. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+// Function to generate a secure random password
+function generatePassword(): string {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
+  let password = "";
+  for (let i = 0; i < 16; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}

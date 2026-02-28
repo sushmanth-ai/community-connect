@@ -46,8 +46,9 @@ async function sendCredentialsEmail(
   const serviceId = Deno.env.get("EMAILJS_SERVICE_ID");
   const templateId = Deno.env.get("EMAILJS_TEMPLATE_ID");
   const publicKey = Deno.env.get("EMAILJS_PUBLIC_KEY");
+  const privateKey = Deno.env.get("EMAILJS_PRIVATE_KEY");
 
-  if (!serviceId || !templateId || !publicKey) {
+  if (!serviceId || !templateId || !publicKey || !privateKey) {
     console.error("EmailJS credentials not configured");
     return false;
   }
@@ -60,6 +61,7 @@ async function sendCredentialsEmail(
         service_id: serviceId,
         template_id: templateId,
         user_id: publicKey,
+        accessToken: privateKey,
         template_params: {
           to_email: to,
           authority_name: authorityName,

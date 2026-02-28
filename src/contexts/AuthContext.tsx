@@ -14,6 +14,7 @@ interface AuthContextType {
   activeStatus: boolean;
   profile: { name: string; avatar_url: string | null; points_total: number } | null;
   loading: boolean;
+  setFirstLogin: (val: boolean) => void;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   authorityLogin: (email: string, password: string) => Promise<{ error: any; firstLogin?: boolean }>;
@@ -146,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, role, departmentId, mandalId, firstLogin, activeStatus, profile, loading, signUp, signIn, authorityLogin, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, departmentId, mandalId, firstLogin, activeStatus, profile, loading, setFirstLogin, signUp, signIn, authorityLogin, signOut }}>
       {children}
     </AuthContext.Provider>
   );

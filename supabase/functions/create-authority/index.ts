@@ -43,69 +43,37 @@ async function sendCredentialsEmail(
   deptName: string,
   loginUrl: string
 ): Promise<boolean> {
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  if (!resendApiKey) {
-    console.error("RESEND_API_KEY not configured");
+  const serviceId = Deno.env.get("EMAILJS_SERVICE_ID");
+  const templateId = Deno.env.get("EMAILJS_TEMPLATE_ID");
+  const publicKey = Deno.env.get("EMAILJS_PUBLIC_KEY");
+
+  if (!serviceId || !templateId || !publicKey) {
+    console.error("EmailJS credentials not configured");
     return false;
   }
 
   try {
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "ResolvIt <onboarding@resend.dev>",
-        to: [to],
-        subject: "Your ResolvIt Authority Account Credentials",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 24px; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">🏛️ ResolvIt Authority Account</h1>
-            </div>
-            <div style="background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; color: #334155;">Hello <strong>${authorityName}</strong>,</p>
-              <p style="color: #475569;">Your authority account has been created on the ResolvIt platform. Here are your login details:</p>
-              
-              <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <table style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Mandal</td>
-                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b;">${mandalName}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Department</td>
-                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b;">${deptName}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Email</td>
-                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b;">${to}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Password</td>
-                    <td style="padding: 8px 0; font-weight: 600; color: #1e293b; font-family: monospace; background: #fef3c7; padding: 4px 8px; border-radius: 4px;">${password}</td>
-                  </tr>
-                </table>
-              </div>
-
-              <div style="background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 12px; margin: 16px 0;">
-                <p style="margin: 0; color: #854d0e; font-size: 14px;">⚠️ You will be required to change your password on first login.</p>
-              </div>
-
-              <a href="${loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 8px;">Login to ResolvIt →</a>
-              
-              <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">This is an automated message from ResolvIt. Please do not reply to this email.</p>
-            </div>
-          </div>
-        `,
+        service_id: serviceId,
+        template_id: templateId,
+        user_id: publicKey,
+        template_params: {
+          to_email: to,
+          authority_name: authorityName,
+          password: password,
+          mandal_name: mandalName,
+          department_name: deptName,
+          login_url: loginUrl,
+        },
       }),
     });
 
     if (!res.ok) {
       const err = await res.text();
-      console.error("Resend API error:", err);
+      console.error("EmailJS API error:", err);
       return false;
     }
     return true;
@@ -256,7 +224,6 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
     }
 
-    // Fetch mandal and department names for the email
     let mandalName = "N/A";
     let deptName = "N/A";
     const { data: mandalData } = await supabaseAdmin.from("mandals").select("name").eq("id", mandal_id).single();
@@ -264,7 +231,6 @@ Deno.serve(async (req) => {
     const { data: deptData } = await supabaseAdmin.from("departments").select("name").eq("id", department_id).single();
     if (deptData) deptName = deptData.name;
 
-    // Send credentials email
     const loginUrl = `${req.headers.get("origin") || "https://resolvit.app"}/auth`;
     const emailSent = await sendCredentialsEmail(email, name, generatedPassword, mandalName, deptName, loginUrl);
 

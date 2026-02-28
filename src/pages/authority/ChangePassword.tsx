@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Shield, KeyRound } from "lucide-react";
 
 const ChangePassword = () => {
-  const { user } = useAuth();
+  const { user, setFirstLogin } = useAuth();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,6 +34,7 @@ const ChangePassword = () => {
 
       // Set first_login = false
       await supabase.from("profiles").update({ first_login: false } as any).eq("id", user!.id);
+      setFirstLogin(false);
 
       toast({ title: "Password updated successfully!" });
       navigate("/authority");

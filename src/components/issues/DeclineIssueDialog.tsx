@@ -12,6 +12,7 @@ interface DeclineIssueDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   issueId: string;
+  reporterId?: string;
   onSuccess: () => void;
 }
 
@@ -23,7 +24,7 @@ const declineCategories = [
   { value: "other", label: "Other" },
 ];
 
-export const DeclineIssueDialog = ({ open, onOpenChange, issueId, onSuccess }: DeclineIssueDialogProps) => {
+export const DeclineIssueDialog = ({ open, onOpenChange, issueId, reporterId, onSuccess }: DeclineIssueDialogProps) => {
   const { user } = useAuth();
   const [category, setCategory] = useState("");
   const [reason, setReason] = useState("");
@@ -49,6 +50,25 @@ export const DeclineIssueDialog = ({ open, onOpenChange, issueId, onSuccess }: D
         .update({ status: "declined" as any })
         .eq("id", issueId);
       if (statusError) throw statusError;
+
+      // Deduct points from the reporter
+      const actualReporterId = reporterId || (await supabase.from("issues").select("reporter_id").eq("id", issueId).single()).data?.reporter_id;
+      if (actualReporterId) {
+        const { data: pointsData } = await supabase
+          .from("points_ledger")
+          .select("points")
+          .eq("issue_id", issueId)
+          .eq("user_id", actualReporterId);
+        const totalPointsAwarded = pointsData?.reduce((sum, p) => sum + p.points, 0) || 0;
+        if (totalPointsAwarded > 0) {
+          await supabase.from("points_ledger").insert({
+            user_id: actualReporterId,
+            points: -totalPointsAwarded,
+            reason: "Issue declined by authority",
+            issue_id: issueId,
+          });
+        }
+      }
 
       toast({ title: "Issue declined" });
       onSuccess();

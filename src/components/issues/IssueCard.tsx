@@ -53,10 +53,28 @@ export const IssueCard = ({ issue, linkPrefix = "/citizen", showActions = false,
 
   const handleDelete = async () => {
     setDeleting(true);
+    // Deduct points before deleting
+    const { data: pointsData } = await supabase
+      .from("points_ledger")
+      .select("points")
+      .eq("issue_id", issue.id)
+      .eq("user_id", issue.reporter_id);
+    
+    const totalPointsAwarded = pointsData?.reduce((sum, p) => sum + p.points, 0) || 0;
+
     const { error } = await supabase.from("issues").delete().eq("id", issue.id);
     if (error) {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });
     } else {
+      // Deduct the points that were awarded for this issue
+      if (totalPointsAwarded > 0) {
+        await supabase.from("points_ledger").insert({
+          user_id: issue.reporter_id,
+          points: -totalPointsAwarded,
+          reason: "Issue deleted by citizen",
+          issue_id: null,
+        });
+      }
       toast({ title: "Issue deleted" });
       onDelete?.(issue.id);
     }
